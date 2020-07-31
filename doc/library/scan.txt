@@ -9,8 +9,8 @@
 Guide
 =====
 
-The scan functions provides the basic functionality needed to do loops
-in Theano. Scan comes with many whistles and bells, which we will introduce
+The scan functions provide the basic functionality needed to do loops
+in Theano. Scan comes with many bells and whistles, which we will introduce
 by way of examples.
 
 
@@ -18,8 +18,8 @@ Simple loop with accumulation:  Computing :math:`A^k`
 -----------------------------------------------------
 
 Assume that, given *k* you want to get ``A**k`` using a loop.
-More precisely, if *A* is a tensor you want to compute
-``A**k`` elemwise. The python/numpy code might look like:
+More precisely, if *A* is a tensor, you want to compute
+``A**k`` elementwise. The python/numpy code might look like:
 
 .. code-block:: python
 
@@ -153,7 +153,8 @@ arange must have its length specified at creation time.
 Simple accumulation into a scalar, ditching lambda
 --------------------------------------------------
 
-Although this example would seem almost self-explanatory, it stresses a
+Here we use a named function, rather than a lambda.
+Although this example is almost self-explanatory, it stresses a
 pitfall to be careful of: the initial output state that is supplied, that is
 ``outputs_info``, must be of a **shape similar to that of the output variable**
 generated at each iteration and moreover, it **must not involve an implicit
@@ -250,7 +251,7 @@ This demonstrates that you can introduce new Theano variables into a scan functi
 Using shared variables - Gibbs sampling
 ---------------------------------------
 
-Another useful feature of scan, is that it can handle shared variables.
+Another useful feature of scan is that it can handle shared variables.
 For example, if we want to implement a Gibbs chain of length 10 we would do
 the following:
 
@@ -289,9 +290,9 @@ the following:
    gibbs10 = theano.function([sample], values[-1], updates=updates)
 
 
-The first, and probably most crucial observation is that the updates
+The first, and probably most crucial observation is that the ``updates``
 dictionary becomes important in this case. It links a shared variable
-with its updated value after k steps. In this case it tells how the
+with its updated value after _k_ steps. In this case it tells how the
 random streams get updated after 10 iterations. If you do not pass this
 update dictionary to your function, you will always get the same 10
 sets of random numbers. You can even use the ``updates`` dictionary
@@ -455,7 +456,7 @@ that our RNN is defined as follows :
   y(n) = W^{out} x(n- 3)
 
 Note that this network is far from a classical recurrent neural
-network and might be useless. The reason we defined as such
+network and might be useless. The reason we defined it in this way
 is to better illustrate the features of scan.
 
 In this case we have a sequence over which we need to iterate ``u``,
@@ -483,10 +484,10 @@ As naming convention for the variables we used ``a_tmb`` to mean ``a`` at
 ``t-b`` and ``a_tpb`` to be ``a`` at ``t+b``.
 Note the order in which the parameters are given, and in which the
 result is returned. Try to respect chronological order among
-the taps ( time slices of sequences or outputs) used. For scan is crucial only
+the taps ( time slices of sequences or outputs) used. For scan it is crucial only
 for the variables representing the different time taps to be in the same order
-as the one in which these taps are given. Also, not only taps should respect
-an order, but also variables, since this is how scan figures out what should
+as the one in which these taps are given. Also, not only should taps respect
+the order, but also variables, since this is how scan figures out what should
 be represented by what. Given that we have all
 the Theano variables needed we construct our RNN as follows :
 
@@ -568,8 +569,8 @@ by the inner function, otherwise an error will be raised.
 Reducing Scan's memory usage
 ----------------------------
 
-This section presents the ``scan_checkpoints`` function. In short, this
-function reduces the memory usage of scan (at the cost of more computation
+This section presents the ``scan_checkpoints`` function. This
+function reduces scan's memory usage (at the cost of more computation
 time) by not keeping in memory all the intermediate time steps of the loop,
 and recomputing them when computing the gradients. This function is therefore
 only useful if you need to compute the gradient of the output of scan with
@@ -577,10 +578,10 @@ respect to its inputs, and shouldn't be used otherwise.
 
 Before going more into the details, here are its current limitations:
 
-* It only works in the case where only the output of the last time step is
+* It only works in cases where only the output of the last time step is
   needed, like when computing ``A**k`` or in an `encoder-decoder` setup.
 * It only accepts sequences of the same length.
-* If ``n_steps`` is specified, it has the same value as the length of any
+* If ``n_steps`` is specified, it must have the same value as the length of any
   sequences.
 * It is singly-recurrent, meaning that only the previous time step can be used
   to compute the current one (i.e. ``h[t]`` can only depend on ``h[t-1]``). In
@@ -589,7 +590,7 @@ Before going more into the details, here are its current limitations:
 Often, in order to be able to compute the gradients through scan operations,
 Theano needs to keep in memory some intermediate computations of scan. This
 can sometimes use a prohibitively large amount of memory.
-``scan_checkpoints`` allows to discard some of those intermediate steps and
+``scan_checkpoints`` makes it possible to discard some of those intermediate steps and
 recompute them again when computing the gradients. Its ``save_every_N`` argument
 specifies the number time steps to do without storing the intermediate results.
 For example, ``save_every_N = 4`` will reduce the memory usage by 4, while having

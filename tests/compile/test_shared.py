@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import aesara
+from aesara import config, tensor
 from aesara.compile.sharedvalue import SharedVariable, generic, shared
 from aesara.misc.safe_asarray import _asarray
 from aesara.tensor.type import (
@@ -329,8 +329,8 @@ class TestSharedVariable:
         #        assert b.type == dvector
         #        f(b,[8])
 
-        b = shared(np.asarray([7.234], dtype=aesara.config.floatX), allow_downcast=True)
-        assert b.dtype == aesara.config.floatX
+        b = shared(np.asarray([7.234], dtype=config.floatX), allow_downcast=True)
+        assert b.dtype == config.floatX
         f(b, [8])
         assert b.get_value() == 8
 
@@ -340,5 +340,5 @@ class TestSharedVariable:
 
     def test_err_symbolic_variable(self):
         with pytest.raises(TypeError):
-            shared(aesara.tensor.ones((2, 3)))
+            shared(tensor.ones((2, 3)))
         shared(np.ones((2, 4)))

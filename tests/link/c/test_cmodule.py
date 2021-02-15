@@ -11,7 +11,9 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-import aesara
+from aesara.configdefaults import config
+from aesara.compile.function import function
+
 from aesara.compile.ops import DeepCopyOp
 from aesara.link.c.cmodule import GCC_compiler, default_blas_ldflags
 from aesara.link.c.exceptions import CompileError
@@ -35,7 +37,7 @@ class MyOp(DeepCopyOp):
             rand = np.random.rand()
             return ('printf("%(rand)s\\n");' + code) % locals()
         # Else, no C code
-        return super(aesara.compile.ops.DeepCopyOp, self).c_code(
+        return super(DeepCopyOp, self).c_code(
             node, name, inames, onames, sub
         )
 
@@ -56,18 +58,18 @@ def test_inter_process_cache():
     # node.inputs[*].owner like the name of the variable.
 
     x, y = dvectors("xy")
-    f = aesara.function([x, y], [MyOp()(x), MyOp()(y)])
+    f = function([x, y], [MyOp()(x), MyOp()(y)])
     f(np.arange(60), np.arange(60))
-    if aesara.config.mode == "FAST_COMPILE" or aesara.config.cxx == "":
+    if config.mode == "FAST_COMPILE" or config.cxx == "":
         assert MyOp.nb_called == 0
     else:
         assert MyOp.nb_called == 1
 
     # What if we compile a new function with new variables?
     x, y = dvectors("xy")
-    f = aesara.function([x, y], [MyOp()(x), MyOp()(y)])
+    f = function([x, y], [MyOp()(x), MyOp()(y)])
     f(np.arange(60), np.arange(60))
-    if aesara.config.mode == "FAST_COMPILE" or aesara.config.cxx == "":
+    if config.mode == "FAST_COMPILE" or config.cxx == "":
         assert MyOp.nb_called == 0
     else:
         assert MyOp.nb_called == 1

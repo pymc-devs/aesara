@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import aesara as th
+from aesara import config, function
 from aesara.d3viz.formatting import PyDotFormatter, pydot_imported, pydot_imported_msg
 
 
@@ -23,16 +23,16 @@ class TestPyDotFormatter:
 
     def test_mlp(self):
         m = models.Mlp()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         pdf = PyDotFormatter()
         graph = pdf(f)
         expected = 11
-        if th.config.mode == "FAST_COMPILE":
+        if config.mode == "FAST_COMPILE":
             expected = 12
         assert len(graph.get_nodes()) == expected
         nc = self.node_counts(graph)
 
-        if th.config.mode == "FAST_COMPILE":
+        if config.mode == "FAST_COMPILE":
             assert nc["apply"] == 6
         else:
             assert nc["apply"] == 5
@@ -40,14 +40,14 @@ class TestPyDotFormatter:
 
     def test_ofg(self):
         m = models.Ofg()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         pdf = PyDotFormatter()
         graph = pdf(f)
         assert len(graph.get_nodes()) == 10
         sub_graphs = graph.get_subgraph_list()
         assert len(sub_graphs) == 2
         ofg1, ofg2 = sub_graphs
-        if th.config.mode == "FAST_COMPILE":
+        if config.mode == "FAST_COMPILE":
             assert len(ofg1.get_nodes()) == 9
         else:
             assert len(ofg1.get_nodes()) == 5
@@ -55,7 +55,7 @@ class TestPyDotFormatter:
 
     def test_ofg_nested(self):
         m = models.OfgNested()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         pdf = PyDotFormatter()
         graph = pdf(f)
         assert len(graph.get_nodes()) == 7

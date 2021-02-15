@@ -23,16 +23,18 @@ from typing import Dict, List, Set
 
 import numpy.distutils
 
-import aesara
+from aesara import configparser
 
 # we will abuse the lockfile mechanism when reading and writing the registry
 from aesara.compile.compilelock import lock_ctx
 from aesara.configdefaults import config, gcc_version_str
+from aesara.graph.op import Op
 from aesara.link.c.exceptions import CompileError, MissingGXX
 from aesara.utils import (
     LOCAL_BITWIDTH,
     flatten,
     hash_from_code,
+    maybe_add_to_os_environ_pathlist,
     output_subprocess_Popen,
     subprocess_Popen,
 )
@@ -1121,7 +1123,7 @@ class ModuleCache:
             self.loaded_key_pkl.add(key_pkl)
         elif config.cmodule__warn_no_version:
             key_flat = flatten(key)
-            ops = [k for k in key_flat if isinstance(k, aesara.graph.op.Op)]
+            ops = [k for k in key_flat if isinstance(k, Op)]
             _logger.warning(
                 "not all the"
                 " following op(s) implement"
@@ -1988,7 +1990,7 @@ def try_march_flag(flags):
             """
     )
 
-    cflags = flags + ["-L" + d for d in aesara.link.c.cmodule.std_lib_dirs()]
+    cflags = flags + ["-L" + d for d in std_lib_dirs()]
     compilation_result, execution_result = GCC_compiler.try_compile_tmp(
         test_code, tmp_prefix="try_march_", flags=cflags, try_run=True
     )
@@ -2768,7 +2770,7 @@ def default_blas_ldflags():
             res = try_blas_flag(flags)
             if res:
                 check_mkl_openmp()
-                aesara.utils.maybe_add_to_os_environ_pathlist("PATH", lib_path[0])
+                maybe_add_to_os_environ_pathlist("PATH", lib_path[0])
                 return res
 
         # to support path that includes spaces, we need to wrap it with double quotes on Windows
@@ -2839,7 +2841,7 @@ def add_blas_configvars():
     config.add(
         "blas__ldflags",
         "lib[s] to include for [Fortran] level-3 blas implementation",
-        aesara.configparser.StrParam(default_blas_ldflags),
+        configparser.StrParam(default_blas_ldflags),
         # Added elsewhere in the c key only when needed.
         in_c_key=False,
     )
@@ -2847,7 +2849,7 @@ def add_blas_configvars():
     config.add(
         "blas__check_openmp",
         "Check for openmp library conflict.\nWARNING: Setting this to False leaves you open to wrong results in blas-related operations.",
-        aesara.configparser.BoolParam(True),
+        configparser.BoolParam(True),
         in_c_key=False,
     )
 

@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 import aesara.tensor as aet
-from aesara import function
 from aesara.compile.debugmode import (
     BadDestroyMap,
     BadThunkOutput,
@@ -13,6 +12,7 @@ from aesara.compile.debugmode import (
     InvalidValueError,
     StochasticOrder,
 )
+from aesara.compile.function import function
 from aesara.compile.mode import predefined_modes
 from aesara.configdefaults import config
 from aesara.graph.basic import Apply, Variable

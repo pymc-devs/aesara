@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 
-from aesara import config, tensor
+import aesara.tensor
 from aesara.compile.sharedvalue import SharedVariable, generic, shared
+from aesara.configdefaults import config
 from aesara.misc.safe_asarray import _asarray
 from aesara.tensor.type import (
     TensorType,
@@ -340,5 +341,5 @@ class TestSharedVariable:
 
     def test_err_symbolic_variable(self):
         with pytest.raises(TypeError):
-            shared(tensor.ones((2, 3)))
+            shared(aesara.tensor.ones((2, 3)))
         shared(np.ones((2, 4)))

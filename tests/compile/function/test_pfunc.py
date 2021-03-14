@@ -1,11 +1,9 @@
 import numpy as np
 import pytest
 
-from aesara import function
-from aesara import shared as aesara_shared
-from aesara import tensor as aet
+import aesara.tensor as aet
 from aesara.compile import UnusedInputError
-from aesara.compile.function import pfunc
+from aesara.compile.function import function, pfunc
 from aesara.compile.io import In
 from aesara.compile.sharedvalue import shared
 from aesara.configdefaults import config
@@ -731,7 +729,7 @@ class TestAliasingRules:
     # library code.
 
     def shared(self, x):
-        return aesara_shared(x)
+        return shared(x)
 
     def test_shared_constructor_copies(self):
         # shared constructor makes copy

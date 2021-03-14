@@ -6,9 +6,9 @@ import time
 import numpy as np
 import pytest
 
+import aesara.gpuarray
 import aesara.tensor as aet
-from aesara import function as func
-from aesara import gpuarray, shared
+from aesara.compile import shared
 from aesara.compile.debugmode import DebugMode, InvalidValueError
 from aesara.compile.function import function
 from aesara.compile.function.types import UnusedInputError
@@ -378,7 +378,7 @@ class TestFunction:
         # for mode in ["FAST_RUN","FAST_COMPILE"]:
         second_time = False
         for mode in ["FAST_RUN", "FAST_COMPILE"]:
-            ori = func(
+            ori = function(
                 [i],
                 [out],
                 mode=mode,
@@ -436,7 +436,7 @@ class TestFunction:
         y = vector("y")
         # this formular has no sense but for a test
         out = (aet_sum(x) - y) ** 2
-        train = func(
+        train = function(
             [i],
             out,
             givens={x: train_x[i], y: train_y[i]},
@@ -463,7 +463,7 @@ class TestFunction:
         # for mode in ["FAST_RUN","FAST_COMPILE"]:
         # second_time = False
         for mode in ["FAST_RUN", "FAST_COMPILE"]:
-            ori = func([x], out, mode=mode, updates={z: z * 2})
+            ori = function([x], out, mode=mode, updates={z: z * 2})
             cpy = ori.copy(delete_updates=True)
 
             assert cpy(1)[0] == 4
@@ -578,7 +578,7 @@ class TestFunction:
 
     def test_constant_output(self):
         # Test that if the output is a constant, we respect the aesara memory interface
-        f = func([], aet.constant([4]))
+        f = function([], aet.constant([4]))
         # print f.maker.fgraph.toposort()
         out = f()
         assert (out == 4).all()
@@ -589,7 +589,7 @@ class TestFunction:
         assert (out2 == 4).all()
 
         # Test that if the output is a constant and borrow, we respect the aesara memory interface
-        f = func([], Out(aet.constant([4]), borrow=True))
+        f = function([], Out(aet.constant([4]), borrow=True))
         # print f.maker.fgraph.toposort()
         out = f()
         assert (out == 4).all()
@@ -697,7 +697,7 @@ class TestFunction:
 
         a, b = dscalars("a", "b")
         c = a + b
-        funct = func([In(a, name="first"), In(b, value=1, name="second")], c)
+        funct = function([In(a, name="first"), In(b, value=1, name="second")], c)
         x = funct(first=1)
         try:
             funct(second=2)
@@ -719,7 +719,7 @@ class TestFunction:
         ]:
             if "inputs" not in d:
                 d["inputs"] = []
-            f = func(**d)
+            f = function(**d)
             assert not f._check_for_aliased_inputs, d
 
         # Assert cases we should check for aliased inputs
@@ -742,7 +742,7 @@ class TestFunction:
         ]:
             if "inputs" not in d:
                 d["inputs"] = []
-            f = func(**d)
+            f = function(**d)
 
             assert f._check_for_aliased_inputs, d
 
@@ -834,7 +834,7 @@ class TestPicklefunction:
 
     def test_output_keys(self):
         x = vector()
-        f = func([x], {"vec": x ** 2})
+        f = function([x], {"vec": x ** 2})
         o = f([2, 3, 4])
         assert isinstance(o, dict)
         assert np.allclose(o["vec"], [4, 9, 16])
@@ -1064,7 +1064,7 @@ class TestPicklefunction:
         x = matrix()
         y = shared(b)
 
-        f = func([x], dot(x, y))
+        f = function([x], dot(x, y))
 
         from io import BytesIO
 
@@ -1151,7 +1151,7 @@ def test_empty_givens_updates():
 
 
 @pytest.mark.skipif(
-    not gpuarray.pygpu_activated or config.mode == "DEBUG_MODE",
+    not aesara.gpuarray.pygpu_activated or config.mode == "DEBUG_MODE",
     reason="DEBUG_MODE forces synchronous behaviour which breaks this test",
 )
 def test_sync_update():
@@ -1180,7 +1180,7 @@ def test_sync_update():
 
     updates = [(w, w + np.asarray(0.001, "float32") * dot(x, x))]
 
-    f = func([], updates=updates, mode=tests.gpuarray.config.mode_with_gpu)
+    f = function([], updates=updates, mode=tests.gpuarray.config.mode_with_gpu)
     assert len(f.maker.fgraph.apply_nodes) == 1
     assert any(isinstance(n.op, GpuGemm) for n in f.maker.fgraph.apply_nodes)
     # Make sure libgpuarray have compile all kernels
@@ -1243,7 +1243,7 @@ def test_FunctionMaker_cache_optimizations():
         c = shared(np.ones((10, 10), dtype=floatX))
         d = shared(np.ones((10, 10), dtype=floatX))
         e = aet_sum(aet_sum(aet_sum(a ** 2 + b) + c) + d)
-        f1 = func([a, b], e, mode=mode)
+        f1 = function([a, b], e, mode=mode)
 
         # FIXME: We can do much better about testing this.
         assert os.path.exists(graph_db_file)
@@ -1253,7 +1253,7 @@ def test_FunctionMaker_cache_optimizations():
         p = shared(np.ones((10, 10), dtype=floatX))
         q = shared(np.ones((10, 10), dtype=floatX))
         j = aet_sum(aet_sum(aet_sum(m ** 2 + n) + p) + q)
-        f2 = func([m, n], j, mode=mode)
+        f2 = function([m, n], j, mode=mode)
 
         in1 = np.ones((10, 10), dtype=floatX)
         in2 = np.ones((10, 10), dtype=floatX)

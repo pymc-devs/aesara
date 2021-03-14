@@ -3,9 +3,10 @@ from io import StringIO
 
 import numpy as np
 
-from aesara import function, printing, tensor
 from aesara.compile import MonitorMode
-from aesara.tensor import log
+from aesara.compile.function import function
+from aesara.printing import debugprint
+from aesara.tensor import log, outer
 from aesara.tensor.type import dscalar, vector
 
 
@@ -18,7 +19,7 @@ def test_detect_nan():
         for output in fn.outputs:
             if np.isnan(output[0]).any():
                 print("*** NaN detected ***")
-                printing.debugprint(node)
+                debugprint(node)
                 print("Inputs : %s" % [input[0] for input in fn.inputs])
                 print("Outputs: %s" % [output[0] for output in fn.outputs])
                 nan_detected[0] = True
@@ -48,7 +49,7 @@ def test_optimizer():
         for output in fn.outputs:
             if np.isnan(output[0]).any():
                 print("*** NaN detected ***")
-                printing.debugprint(node)
+                debugprint(node)
                 print("Inputs : %s" % [input[0] for input in fn.inputs])
                 print("Outputs: %s" % [output[0] for output in fn.outputs])
                 nan_detected[0] = True
@@ -57,7 +58,7 @@ def test_optimizer():
     x = dscalar("x")
     mode = MonitorMode(post_func=detect_nan)
     mode = mode.excluding("fusion")
-    f = function([x], [tensor.log(x) * x], mode=mode)
+    f = function([x], [log(x) * x], mode=mode)
     # Test that the fusion wasn't done
     assert len(f.maker.fgraph.apply_nodes) == 2
     try:
@@ -80,7 +81,7 @@ def test_not_inplace():
         for output in fn.outputs:
             if np.isnan(output[0]).any():
                 print("*** NaN detected ***")
-                printing.debugprint(node)
+                debugprint(node)
                 print("Inputs : %s" % [input[0] for input in fn.inputs])
                 print("Outputs: %s" % [output[0] for output in fn.outputs])
                 nan_detected[0] = True
@@ -90,8 +91,8 @@ def test_not_inplace():
     mode = MonitorMode(post_func=detect_nan)
     # mode = mode.excluding('fusion', 'inplace')
     mode = mode.excluding("local_elemwise_fusion", "inplace_elemwise_optimizer")
-    o = tensor.outer(x, x)
-    out = tensor.log(o) * o
+    o = outer(x, x)
+    out = log(o) * o
     f = function([x], [out], mode=mode)
 
     # Test that the fusion wasn't done

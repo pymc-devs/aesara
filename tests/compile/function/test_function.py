@@ -8,8 +8,7 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 
-from aesara import function as func
-from aesara import shared
+from aesara.compile import shared
 from aesara.compile.function import function, function_dump
 from aesara.compile.io import In
 from aesara.configdefaults import config
@@ -252,7 +251,7 @@ def test_pickle_unpickle_with_reoptimization():
     updates = OrderedDict()
     updates[x3] = x3 + 1
     updates[x4] = x4 + 1
-    f = func([x1, x2], y, updates=updates, mode=mode)
+    f = function([x1, x2], y, updates=updates, mode=mode)
 
     # now pickle the compiled aesara fn
     string_pkl = pickle.dumps(f, -1)
@@ -284,7 +283,7 @@ def test_pickle_unpickle_without_reoptimization():
     updates = OrderedDict()
     updates[x3] = x3 + 1
     updates[x4] = x4 + 1
-    f = func([x1, x2], y, updates=updates, mode=mode)
+    f = function([x1, x2], y, updates=updates, mode=mode)
 
     # now pickle the compiled aesara fn
     string_pkl = pickle.dumps(f, -1)

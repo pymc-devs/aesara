@@ -23,11 +23,10 @@ from typing import Dict, List, Set
 
 import numpy.distutils
 
-from aesara import configparser
-
 # we will abuse the lockfile mechanism when reading and writing the registry
 from aesara.compile.compilelock import lock_ctx
 from aesara.configdefaults import config, gcc_version_str
+from aesara.configparser import BoolParam, StrParam
 from aesara.graph.op import Op
 from aesara.link.c.exceptions import CompileError, MissingGXX
 from aesara.utils import (
@@ -2841,7 +2840,7 @@ def add_blas_configvars():
     config.add(
         "blas__ldflags",
         "lib[s] to include for [Fortran] level-3 blas implementation",
-        configparser.StrParam(default_blas_ldflags),
+        StrParam(default_blas_ldflags),
         # Added elsewhere in the c key only when needed.
         in_c_key=False,
     )
@@ -2849,7 +2848,7 @@ def add_blas_configvars():
     config.add(
         "blas__check_openmp",
         "Check for openmp library conflict.\nWARNING: Setting this to False leaves you open to wrong results in blas-related operations.",
-        configparser.BoolParam(True),
+        BoolParam(True),
         in_c_key=False,
     )
 

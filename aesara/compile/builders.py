@@ -3,7 +3,7 @@
 from collections import OrderedDict
 from functools import partial, reduce
 
-from aesara import tensor as aet
+import aesara.tensor as aet
 from aesara.compile.function.pfunc import rebuild_collect_shared
 from aesara.compile.function.types import orig_function
 from aesara.compile.mode import optdb

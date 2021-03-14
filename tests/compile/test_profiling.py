@@ -6,7 +6,9 @@ from io import StringIO
 import numpy as np
 
 import aesara.tensor as aet
-from aesara import ProfileStats, config, function
+from aesara.compile import ProfileStats
+from aesara.compile.function import function
+from aesara.configdefaults import config
 from aesara.ifelse import ifelse
 from aesara.tensor.type import fvector, scalars
 

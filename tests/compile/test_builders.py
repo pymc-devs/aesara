@@ -3,8 +3,7 @@ from functools import partial
 import numpy as np
 import pytest
 
-from aesara import grad as aesara_grad
-from aesara import shared
+from aesara.compile import shared
 from aesara.compile.builders import OpFromGraph
 from aesara.compile.function import function
 from aesara.configdefaults import config
@@ -312,7 +311,7 @@ class TestOpFromGraph(unittest_tools.InferShapeTester):
 
         c = op(x, y)
 
-        g1 = aesara_grad(c.sum(), x)
+        g1 = grad(c.sum(), x)
 
         out = g1.eval(
             {x: np.ones((5,), dtype=np.float32), y: np.ones((5,), dtype=np.float32)}

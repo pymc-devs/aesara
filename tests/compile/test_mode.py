@@ -1,7 +1,8 @@
 import pytest
 
-from aesara import config, function
+from aesara.compile.function import function
 from aesara.compile.mode import AddFeatureOptimizer, Mode
+from aesara.configdefaults import config
 from aesara.graph.toolbox import NoOutputFromInplace
 from aesara.tensor.math import dot, tanh
 from aesara.tensor.type import matrix

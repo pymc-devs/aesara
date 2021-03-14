@@ -4,9 +4,9 @@ Test compilation modes
 
 import copy
 
-import aesara
-from aesara import config
+from aesara.compile.function import function
 from aesara.compile.mode import Mode, get_default_mode
+from aesara.configdefaults import config
 from aesara.tensor.type import matrix, vector
 
 
@@ -28,7 +28,7 @@ class TestBunchOfModes:
         for mode in modes:
             x = matrix()
             y = vector()
-            f = aesara.function([x, y], x + y, mode=mode)
+            f = function([x, y], x + y, mode=mode)
             # test that it runs something
             f([[1, 2], [3, 4]], [5, 6])
             linker_classes_involved.append(f.maker.mode.linker.__class__)

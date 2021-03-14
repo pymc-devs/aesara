@@ -8,8 +8,10 @@ import numpy as np
 import pytest
 
 import aesara.tensor as aet
-from aesara import config, function, shared
+from aesara.compile import shared
+from aesara.compile.function import function
 from aesara.compile.nanguardmode import NanGuardMode
+from aesara.configdefaults import config
 from aesara.tensor.math import dot
 from aesara.tensor.type import matrix, tensor3
 

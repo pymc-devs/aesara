@@ -7,7 +7,6 @@ from aesara.compile.function import function, pfunc
 from aesara.compile.io import In
 from aesara.compile.sharedvalue import shared
 from aesara.configdefaults import config
-from aesara.configdefaults import config as aesara_config
 from aesara.graph.fg import MissingInputError
 from aesara.misc.safe_asarray import _asarray
 from aesara.tensor.math import sum as aet_sum
@@ -1011,7 +1010,7 @@ class TestAliasingRules:
         assert not np.may_share_memory(data_of(A), data_of(B))
 
         # aesara should have been smart enough to not make copies
-        if aesara_config.mode not in ["DebugMode", "DEBUG_MODE", "FAST_COMPILE"]:
+        if config.mode not in ["DebugMode", "DEBUG_MODE", "FAST_COMPILE"]:
             # We don't ask DebugMode and FAST_COMPILE not to make copy.
             # We have the right to do so.
             assert np.all(data_of(A) < 5)

@@ -2,6 +2,7 @@ import copy
 import traceback as tb
 import warnings
 from collections.abc import Iterable
+from typing import Optional
 
 import numpy as np
 
@@ -26,7 +27,9 @@ class _tensor_py_operators:
     # def __float__(self): return convert_to_float64(self)
     # def __complex__(self): return convert_to_complex128(self)
 
-    _is_nonzero = True
+    _is_nonzero: bool = True
+    real: Optional[property] = None
+    imag: Optional[property] = None
 
     def __lt__(self, other):
         rval = aet.math.lt(self, other)
@@ -141,8 +144,6 @@ class _tensor_py_operators:
             raise
         except (NotImplementedError, TypeError):
             return NotImplemented
-
-    __truediv__ = __div__
 
     def __pow__(self, other):
         # See explanation in __add__ for the error catched

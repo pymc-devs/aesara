@@ -2,7 +2,6 @@ import logging
 import os
 import shlex
 import sys
-import typing
 import warnings
 from configparser import (
     ConfigParser,
@@ -13,7 +12,7 @@ from configparser import (
 )
 from functools import wraps
 from io import StringIO
-from typing import Optional
+from typing import Callable, Dict, Optional, Sequence, Union
 
 from aesara.utils import deprecated, hash_from_code
 
@@ -95,7 +94,7 @@ class AesaraConfigParser:
         self._flags_dict = flags_dict
         self._aesara_cfg = aesara_cfg
         self._aesara_raw_cfg = aesara_raw_cfg
-        self._config_var_dict: typing.Dict = {}
+        self._config_var_dict: Dict = {}
         super().__init__()
 
     def __str__(self, print_doc=True):
@@ -269,10 +268,10 @@ class ConfigParam:
 
     def __init__(
         self,
-        default: typing.Union[object, typing.Callable[[object], object]],
+        default: Union[object, Callable[[object], object]],
         *,
-        apply: typing.Optional[typing.Callable[[object], object]] = None,
-        validate: typing.Optional[typing.Callable[[object], bool]] = None,
+        apply: Optional[Callable[[object], object]] = None,
+        validate: Optional[Callable[[object], bool]] = None,
         mutable: bool = True,
     ):
         """
@@ -374,7 +373,7 @@ class ConfigParam:
 
 class EnumStr(ConfigParam):
     def __init__(
-        self, default: str, options: typing.Sequence[str], validate=None, mutable=True
+        self, default: str, options: Sequence[str], validate=None, mutable=True
     ):
         """Creates a str-based parameter that takes a predefined set of options.
 

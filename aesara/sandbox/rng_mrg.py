@@ -14,8 +14,10 @@ P. L'Ecuyer and R. Simard and E. Jack Chen and W. David Kelton, An Object-Orient
 """
 
 import warnings
+from typing import Any, Callable, Optional
 
 import numpy as np
+from typing_extensions import Protocol
 
 from aesara import function, gradient
 from aesara import scalar as aes
@@ -43,6 +45,15 @@ def matVecModM(A, s, m):
     return np.int32(np.sum((A * s) % m, 1) % m)
 
 
+class MultMatVect(Protocol):
+    dot_modulo: Optional[Callable]
+
+
+def multMatVect_decorator(func: Any) -> MultMatVect:
+    return func
+
+
+@multMatVect_decorator
 def multMatVect(v, A, m1, B, m2):
     # TODO : need description for parameter and return
     """

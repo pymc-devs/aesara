@@ -11,9 +11,10 @@ import warnings
 from collections import OrderedDict
 from collections.abc import Sequence
 from numbers import Number
-from typing import Dict
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from typing_extensions import Protocol
 
 import aesara
 import aesara.scalar.sharedvar
@@ -60,7 +61,7 @@ _logger = logging.getLogger("aesara.tensor.basic")
 __docformat__ = "restructuredtext en"
 
 
-def check_equal_numpy(x, y):
+def check_equal_numpy(x: np.array, y: np.array) -> bool:
     """
     Return True iff x and y are equal.
 
@@ -87,7 +88,9 @@ def __oplist_tag(thing, tag):
 
 
 @_as_tensor_variable.register(Apply)
-def _as_tensor_Apply(x, name, ndim, **kwargs):
+def _as_tensor_Apply(
+    x: Union[int, List, Apply, Variable], name: str, ndim: int, **kwargs
+) -> Callable:
     # use Apply's default output mechanism
     if (x.op.default_output is None) and (len(x.outputs) != 1):
         raise TypeError(
@@ -195,7 +198,9 @@ def _as_tensor_bool(x, name, ndim, **kwargs):
 as_tensor = as_tensor_variable
 
 
-def constant(x, name=None, ndim=None, dtype=None):
+def constant(
+    x, name: Optional[str] = None, ndim: Optional[int] = None, dtype=None
+) -> TensorConstant:
     """Return a `TensorConstant` with value `x`.
 
     Raises
@@ -239,7 +244,7 @@ def constant(x, name=None, ndim=None, dtype=None):
         raise TypeError(f"Could not convert {x} to TensorType", type(x))
 
 
-def _obj_is_wrappable_as_tensor(x):
+def _obj_is_wrappable_as_tensor(x) -> bool:
     try:
         constant(x)
         return True
@@ -247,7 +252,7 @@ def _obj_is_wrappable_as_tensor(x):
         return False
 
 
-def numpy_scalar(data):
+def numpy_scalar(data) -> np.array:
     """Return a scalar stored in a numpy ndarray.
 
     Raises
@@ -293,7 +298,10 @@ _scalar_constant_value_elemwise_ops = (
 
 
 def get_scalar_constant_value(
-    orig_v, elemwise=True, only_process_constants=False, max_recur=10
+    orig_v: Optional[Union[int, float, np.ndarray, Constant]],
+    elemwise: bool = True,
+    only_process_constants: bool = False,
+    max_recur: int = 10,
 ):
     """Return the constant scalar(0-D) value underlying variable `v`.
 
@@ -306,6 +314,8 @@ def get_scalar_constant_value(
 
     Parameters
     ----------
+    orig_v :
+
     elemwise : bool
         If False, we won't try to go into elemwise. So this call is faster.
         But we still investigate in Second Elemwise (as this is a substitute
@@ -962,15 +972,16 @@ fill = second
 pprint.assign(fill, printing.FunctionPrinter("fill"))
 
 
-def ones_like(model, dtype=None, opt=False):
+def ones_like(model, dtype=None, opt: bool = False):
     """equivalent of numpy.ones_like
     Parameters
     ----------
     model : tensor
     dtype : data-type, optional
-    opt : If True, we will return a constant instead of a graph when possible.
-          Useful for Aesara optimization, not for user building a graph as this
-          have the consequence that model isn't always in the graph.
+    opt : bool
+        If True, we will return a constant instead of a graph when possible.
+        Useful for Aesara optimization, not for user building a graph as this
+        have the consequence that model isn't always in the graph.
 
     Returns
     -------
@@ -985,15 +996,16 @@ def ones_like(model, dtype=None, opt=False):
     return fill(model, ret)
 
 
-def zeros_like(model, dtype=None, opt=False):
+def zeros_like(model, dtype=None, opt: bool = False):
     """equivalent of numpy.zeros_like
     Parameters
     ----------
     model : tensor
     dtype : data-type, optional
-    opt : If True, we will return a constant instead of a graph when possible.
-          Useful for Aesara optimization, not for user building a graph as this
-          have the consequence that model isn't always in the graph.
+    opt : bool
+        If True, we will return a constant instead of a graph when possible.
+        Useful for Aesara optimization, not for user building a graph as this
+        have the consequence that model isn't always in the graph.
 
     Returns
     -------
@@ -1009,8 +1021,11 @@ def zeros_like(model, dtype=None, opt=False):
     return fill(model, ret)
 
 
-def zeros(shape, dtype=None):
-    """Create a `TensorVariable` filled with zeros, closer to NumPy's syntax than ``alloc``."""
+def zeros(shape: Union[np.ndarray, Sequence, TensorVariable], dtype=None):
+    """Create a `TensorVariable` filled with zeros, closer to NumPy's syntax
+    than ``alloc``.
+
+    """
     if not isinstance(shape, (np.ndarray, Sequence, TensorVariable)):
         shape = [shape]
     if dtype is None:
@@ -1018,8 +1033,12 @@ def zeros(shape, dtype=None):
     return alloc(np.array(0, dtype=dtype), *shape)
 
 
-def ones(shape, dtype=None):
-    """Create a `TensorVariable` filled with ones, closer to NumPy's syntax than ``alloc``."""
+def ones(
+    shape: Union[np.ndarray, Sequence, TensorVariable, List],
+    dtype: Optional[type] = None,
+):
+    """Create a `TensorVariable` filled with ones,
+    closer to NumPy's syntax than ``alloc``."""
     if not isinstance(shape, (np.ndarray, Sequence, TensorVariable)):
         shape = [shape]
     if dtype is None:
@@ -1074,7 +1093,7 @@ class Nonzero(Op):
 _nonzero = Nonzero()
 
 
-def nonzero(a, return_matrix=False):
+def nonzero(a: np.array, return_matrix: bool = False) -> Tuple:
     """
     Returns one of the following:
 
@@ -1202,7 +1221,9 @@ class Tri(Op):
         return [grad_undefined(self, i, inp[i]) for i in range(3)]
 
 
-def tri(N, M=None, k=0, dtype=None):
+def tri(
+    N: int, M: Optional[int] = None, k: Optional[int] = 0, dtype: Optional[type] = None
+):
     """
     An array with ones at and below the given diagonal and zeros elsewhere.
 
@@ -1218,7 +1239,7 @@ def tri(N, M=None, k=0, dtype=None):
         `k` = 0 is the main diagonal, while `k` < 0 is below it,
         and `k` > 0 is above.  The default is 0.
     dtype : dtype, optional
-        Data type of the returned array.  The default is float.
+        Data type of the returned array. The default is None.
 
     Returns
     -------
@@ -1235,7 +1256,7 @@ def tri(N, M=None, k=0, dtype=None):
     return op(N, M, k)
 
 
-def tril(m, k=0):
+def tril(m: np.array, k: Optional[int] = 0) -> np.array:
     """
     Lower triangle of an array.
 
@@ -1262,14 +1283,20 @@ def tril(m, k=0):
     return m * tri(m.shape[0], m.shape[1], k=k, dtype=m.dtype)
 
 
-def triu(m, k=0):
+def triu(m, k: int = 0) -> np.array:
     """
     Upper triangle of an array.
 
     Return a copy of a matrix with the elements below the `k`-th diagonal
     zeroed.
 
-    Please refer to the documentation for `tril` for further details.
+    Parameters
+    ----------
+    m : array_like, shape (M, N)
+        Input array.
+    k : int
+        Diagonal above which to zero elements.  `k = 0` (the default) is the
+        main diagonal, `k < 0` is below it and `k > 0` is above.
 
     See Also
     --------
@@ -1316,7 +1343,7 @@ class Eye(Op):
         return [grad_undefined(self, i, inp[i]) for i in range(3)]
 
 
-def eye(n, m=None, k=0, dtype=None):
+def eye(n: int, m: Optional[int] = None, k: Optional[int] = 0, dtype=None):
     """Return a 2-D array with ones on the diagonal and zeros elsewhere.
 
     Parameters
@@ -1405,7 +1432,7 @@ class Alloc(COp):
     """
 
     _f16_ok = True
-    __props__ = ()
+    __props__: Union[Tuple, Tuple[str, str]] = ()
 
     def validate_shape(self, shape):
         return alloc_validate_shape(shape)
@@ -1615,7 +1642,7 @@ class MakeVector(COp):
 
     __props__ = ("dtype",)
 
-    def __init__(self, dtype="int64"):
+    def __init__(self, dtype: str = "int64"):
         self.dtype = dtype
 
     def make_node(self, *inputs):
@@ -1716,7 +1743,16 @@ class MakeVector(COp):
 make_vector = MakeVector()
 
 
-def transfer(var, target):
+class Transfer(Protocol):
+    _others: List
+
+
+def transfer_decorator(func: Any) -> Transfer:
+    return func
+
+
+@transfer_decorator
+def transfer(var, target: str):
     """
     Return a version of `var` transferred to `target`.
 
@@ -1743,7 +1779,7 @@ def transfer(var, target):
 transfer._others = []
 
 
-def register_transfer(fn):
+def register_transfer(fn: Callable):
     """
     Register a transfer function for alternative targets.
 
@@ -1797,7 +1833,7 @@ default = Default()
 ##########################
 
 
-def extract_constant(x, elemwise=True, only_process_constants=False):
+def extract_constant(x, elemwise: bool = True, only_process_constants: bool = False):
     """
     This function is basically a call to tensor.get_scalar_constant_value.
 
@@ -1822,7 +1858,7 @@ def extract_constant(x, elemwise=True, only_process_constants=False):
     return x
 
 
-def transpose(x, axes=None):
+def transpose(x, axes: Optional[List] = None):
     """
     Reorder the dimensions of x. (Default: reverse them)
 
@@ -1837,7 +1873,7 @@ def transpose(x, axes=None):
     return ret
 
 
-def split(x, splits_size, n_splits, axis=0):
+def split(x, splits_size, n_splits: int, axis: int = 0):
     the_split = Split(n_splits)
     return the_split(x, axis, splits_size)
 
@@ -1859,7 +1895,7 @@ class Split(COp):
 
     """
 
-    len_splits = None
+    len_splits: Optional[int] = None
     """A Split instance will have this many outputs, and require that
     the splits argument to `perform` have exactly this many elements.
     """
@@ -2558,7 +2594,7 @@ def join(axis, *tensors_list):
         return join_(axis, *tensors_list)
 
 
-def roll(x, shift, axis=None):
+def roll(x, shift: int, axis: Optional[int] = None):
     """
     Convenience function to roll TensorTypes along the given axis.
 
@@ -2712,11 +2748,17 @@ def stack(*tensors, **kwargs):
     return join(axis, *[shape_padaxis(t, axis) for t in tensors])
 
 
-def concatenate(tensor_list, axis=0):
+def concatenate(tensor_list: Union[Tuple, List], axis: int = 0):
     """Alias for `join`(axis, *tensor_list).
 
     This function is similar to `join`, but uses the signature of
     numpy's concatenate function.
+
+    Parameters
+    ----------
+    tensor_list : list or tuple
+
+    axis : int
 
     Raises
     ------
@@ -3013,7 +3055,9 @@ class Flatten(COp):
         )
 
 
-def is_flat(var, ndim=None, outdim=None):
+def is_flat(
+    var: TensorVariable, ndim: Optional[int] = None, outdim: Optional[int] = None
+) -> bool:
     """
     Verifies the dimensionality of the var is equal to
     outdim. This method is usually called after flatten method on a
@@ -3026,8 +3070,9 @@ def is_flat(var, ndim=None, outdim=None):
     ----------
         var : aesara.tensor.var.TensorVariable
             the aesara var on which the dimensionality is checked.
+        ndim : int or None
 
-        outdim : int
+        outdim : int or None
             the expected dimensionality of var.
 
     Returns
@@ -3046,7 +3091,7 @@ def is_flat(var, ndim=None, outdim=None):
     return var.ndim == ndim
 
 
-def flatten(x, ndim=1):
+def flatten(x: TensorVariable, ndim: int = 1):
     """Return a copy of the array collapsed into one dimension.
 
     Reshapes the variable `x` by keeping the first outdim-1 dimension size(s)
@@ -3162,7 +3207,7 @@ class Tile(Op):
         raise NotImplementedError()
 
 
-def tile(x, reps, ndim=None):
+def tile(x, reps: Union[int, List], ndim: Optional[int] = None):
     """
     Tile input array `x` according to `reps`.
 
@@ -3840,7 +3885,7 @@ extract_diag = ExtractDiag()
 # TODO: optimization to insert ExtractDiag with view=True
 
 
-def diagonal(a, offset=0, axis1=0, axis2=1):
+def diagonal(a, offset: int = 0, axis1: int = 0, axis2: int = 1):
     """
     A helper function for `ExtractDiag`. It accepts tensor with
     `ndim >= 2` as input. The name `diagonal` is just meant to keep it
@@ -3870,7 +3915,7 @@ class AllocDiag(Op):
 
     __props__ = ("offset", "axis1", "axis2")
 
-    def __init__(self, offset=0, axis1=0, axis2=1):
+    def __init__(self, offset: int = 0, axis1: int = 0, axis2: int = 1):
         """
         Parameters
         ----------
@@ -3966,7 +4011,7 @@ class AllocDiag(Op):
             self.axis2 = 1
 
 
-def diag(v, k=0):
+def diag(v, k: int = 0):
     """
     A helper function for two ops: `ExtractDiag` and
     `AllocDiag`. The name `diag` is meant to keep it consistent
@@ -4041,7 +4086,7 @@ def swapaxes(y, axis1, axis2):
     return y.dimshuffle(li)
 
 
-def choose(a, choices, out=None, mode="raise"):
+def choose(a, choices, out=None, mode: str = "raise"):
     """
     Construct an array from an index array and a set of arrays to choose from.
 
@@ -4173,7 +4218,7 @@ class Choose(Op):
 class AllocEmpty(COp):
     """Implement Alloc on the cpu, but without initializing memory."""
 
-    __props__ = ("dtype",)
+    __props__: Union[Tuple[str], Tuple[str, str]] = ("dtype",)
     params_type = ParamsType(typecode=int32)
 
     # specify the type of the data

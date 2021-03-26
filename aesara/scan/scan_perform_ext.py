@@ -70,7 +70,7 @@ except ImportError:
         except ImportError:
             _logger.info("Compiling C code for scan")
 
-            cfile = os.path.join(aesara.__path__[0], "scan", "c_code", "scan_perform.c")
+            cfile = os.path.join(aesara.__path__[0], "scan", "c_code", "scan_perform.c")  # type: ignore
 
             if not os.path.exists(cfile):
                 raise ImportError(

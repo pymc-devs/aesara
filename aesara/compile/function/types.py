@@ -11,9 +11,10 @@ import pickle
 import time
 import warnings
 from itertools import chain
-from typing import List
+from typing import Any, List, Tuple
 
 import numpy as np
+from typing_extensions import Protocol
 
 import aesara
 import aesara.compile.profiling
@@ -154,7 +155,18 @@ class Supervisor:
                 raise InconsistencyError("Trying to destroy a protected" "Variable.", r)
 
 
-def std_fgraph(input_specs, output_specs, accept_inplace=False):
+class Std_fgraph(Protocol):
+    features: List
+
+
+def std_fgraph_decorator(func: Any) -> Std_fgraph:
+    return func
+
+
+@std_fgraph_decorator
+def std_fgraph(
+    input_specs, output_specs, accept_inplace: bool = False
+) -> Tuple[FunctionGraph, List]:
     """
     Makes an FunctionGraph corresponding to the input specs and the output
     specs.  Any SymbolicInput in the input_specs, if its update field

@@ -108,7 +108,7 @@ except ImportError:
             _logger.info("Compiling new CVM")
             dirname = "lazylinker_ext"
             cfile = os.path.join(
-                aesara.__path__[0], "link", "c", "c_code", "lazylinker_c.c"
+                aesara.__path__[0], "link", "c", "c_code", "lazylinker_c.c"  # type: ignore
             )
             if not os.path.exists(cfile):
                 # This can happen in not normal case. We just

@@ -2,6 +2,9 @@ import logging
 import os
 import sys
 import warnings
+from typing import Any, Callable, Dict, Optional, TypeVar
+
+from typing_extensions import Protocol
 
 import aesara
 from aesara.compile import optdb
@@ -79,7 +82,20 @@ def pygpu_parse_version(version_string):
     return version_type(major=major, minor=minor, patch=patch, fullversion=fullversion)
 
 
-def init_dev(dev, name=None, preallocate=None):
+F = TypeVar("F", bound=Callable[..., object])
+
+
+class Init_dev(Protocol[F]):
+    devmap: Dict
+    __call__: F
+
+
+def init_dev_decorator(func: Any) -> Init_dev:
+    return func
+
+
+@init_dev_decorator
+def init_dev(dev, name: Optional[str] = None, preallocate: Optional[int] = None):
     global pygpu_activated
     global aesara_gpu_is_already_active
     if (

@@ -15,9 +15,10 @@ from collections.abc import Callable
 from copy import copy
 from itertools import chain
 from textwrap import dedent
-from typing import Dict, Mapping, Optional, Tuple, Type, Union
+from typing import Any, Dict, Mapping, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
+from typing_extensions import Protocol
 
 import aesara
 from aesara import printing
@@ -101,6 +102,19 @@ def as_common_dtype(*vars):
     return (v.astype(dtype) for v in vars)
 
 
+F = TypeVar("F", bound=Callable[..., object])
+
+
+class Get_scalar_type(Protocol[F]):
+    cache: Dict
+    __call__: F
+
+
+def get_scalar_type_decorator(func: Any) -> Get_scalar_type:
+    return func
+
+
+@get_scalar_type_decorator
 def get_scalar_type(dtype):
     """
     Return a Scalar(dtype) object.

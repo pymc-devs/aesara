@@ -3,9 +3,15 @@ import re
 import traceback as tb
 import warnings
 from collections import OrderedDict
+from typing import TYPE_CHECKING, Iterable, List, Optional, Tuple, Union
 
 from aesara.compile.function.pfunc import pfunc
 from aesara.compile.function.types import orig_function
+
+
+if TYPE_CHECKING:
+    from aesara.compile.profiling import ProfileStats
+    from aesara.graph.basic import Variable
 
 
 __all__ = ["types", "pfunc"]
@@ -86,18 +92,18 @@ def function_dump(
 
 
 def function(
-    inputs,
-    outputs=None,
-    mode=None,
-    updates=None,
-    givens=None,
-    no_default_updates=False,
-    accept_inplace=False,
-    name=None,
-    rebuild_strict=True,
-    allow_input_downcast=None,
-    profile=None,
-    on_unused_input=None,
+    inputs: List[Variable],
+    outputs: Optional[List[Variable]] = None,
+    mode: Union[str] = None,
+    updates: Optional[Union[List, Tuple, Iterable]] = None,
+    givens: Optional[Union[List, Tuple, Iterable]] = None,
+    no_default_updates: bool = False,
+    accept_inplace: bool = False,
+    name: Optional[str] = None,
+    rebuild_strict: bool = True,
+    allow_input_downcast: Optional[bool] = None,
+    profile: Optional[Union[ProfileStats, bool]] = None,
+    on_unused_input: Optional[str] = None,
 ):
     """
     Return a :class:`callable object <aesara.compile.function.types.Function>`
@@ -109,12 +115,11 @@ def function(
         Function parameters, these are not allowed to be shared variables.
     outputs : list or dict of Variables or Out instances.
         If it is a dict, the keys must be strings. Expressions to compute.
-    mode : string or `Mode` instance.
+    mode : string or `Mode` instance or None
         Compilation mode.
-    updates : iterable over pairs (shared_variable, new_expression). List, tuple
-              or OrderedDict.
-        Updates the values for SharedVariable inputs according to these
-        expressions.
+    updates : iterable over pairs (shared_variable, new_expression). List, tuple,
+        OrderedDict or None. Updates the values for SharedVariable inputs
+        according to these expressions.
     givens : iterable over pairs (Var1, Var2) of Variables. List, tuple or dict.
              The Var1 and Var2 in each pair must have the same Type.
         Specific substitutions to make in the computation graph (Var2 replaces
@@ -127,7 +132,7 @@ def function(
         True iff the graph can contain inplace operations prior to the
         optimization phase (default is False). *Note* this parameter is unsupported,
         and its use is not recommended.
-    name : str
+    name : str or None
         An optional name for this function. The profile mode will print the time
         spent in this function.
     rebuild_strict : bool
@@ -152,7 +157,7 @@ def function(
         If argument is a string, a new ProfileStats instance will be created
         with that string as its ``message`` attribute.
         This profiling object will be available via self.profile.
-    on_unused_input
+    on_unused_input : str or None
         What to do if a variable in the 'inputs' list is not used in the graph.
         Possible values are 'raise', 'warn', 'ignore' and None.
 

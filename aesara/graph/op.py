@@ -13,6 +13,7 @@ import sys
 import warnings
 from abc import abstractmethod
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     ClassVar,
@@ -24,10 +25,12 @@ from typing import (
     Set,
     Text,
     Tuple,
+    TypeVar,
     Union,
 )
 
 import numpy as np
+from typing_extensions import Protocol
 
 import aesara
 from aesara.configdefaults import config
@@ -44,10 +47,14 @@ from aesara.graph.utils import (
 from aesara.link.c.interface import CLinkerOp
 
 
+if TYPE_CHECKING:
+    from aesara.gpuarray.type import GpuContextType
+    from aesara.graph.type import EnumList
+
 __docformat__ = "restructuredtext en"
 
-StorageMapType = List[Optional[List[Any]]]
-ComputeMapType = List[bool]
+StorageMapType = Union[List, Dict]
+ComputeMapType = Union[List, Dict]
 OutputStorageType = List[Optional[List[Any]]]
 ParamsInputType = Optional[Tuple[Any]]
 PerformMethodType = Callable[
@@ -136,6 +143,21 @@ def compute_test_value(node: Apply):
         output.tag.test_value = storage_map[output][0]
 
 
+F = TypeVar("F", bound=Callable[..., object])
+
+
+class Rval(Protocol[F]):
+    inputs: List
+    outputs: List
+    perform: List
+    lazy: bool
+    __call__: F
+
+
+def rval_decorator(func: Any) -> Rval:
+    return func
+
+
 class Op(MetaObject):
     """A class that models and constructs operations in a graph.
 
@@ -158,6 +180,9 @@ class Op(MetaObject):
     """
 
     default_output: Optional[int] = None
+    itypes: Optional[List[TypeVar]] = None
+    otypes: Optional[List[TypeVar]] = None
+    params_type: Optional[Union[ParamsType, GpuContextType, EnumList]] = None
     """
     An `int` that specifies which output `Op.__call__` should return.  If
     `None`, then all outputs are returned.
@@ -223,7 +248,9 @@ class Op(MetaObject):
             )
         return Apply(self, inputs, [o() for o in self.otypes])
 
-    def __call__(self, *inputs: Any, **kwargs) -> Union[Variable, List[Variable]]:
+    def __call__(
+        self, *inputs: Any, **kwargs
+    ) -> Union[Variable, List[Variable], Tuple[Variable]]:
         """Construct an `Apply` node using `self.make_node` and return its outputs.
 
         This method is just a wrapper around `Op.make_node`.
@@ -492,6 +519,7 @@ class Op(MetaObject):
 
         if params is NoParams:
             # default arguments are stored in the closure of `rval`
+            @rval_decorator
             def rval(p=p, i=node_input_storage, o=node_output_storage, n=node):
                 r = p(n, [x[0] for x in i], o)
                 for o in node.outputs:
@@ -501,6 +529,7 @@ class Op(MetaObject):
         else:
             params_val = node.params_type.filter(params)
 
+            @rval_decorator
             def rval(
                 p=p,
                 i=node_input_storage,
@@ -572,6 +601,19 @@ class Op(MetaObject):
         return getattr(type(self), "__name__", super().__str__())
 
 
+class Rval_c(Protocol):
+    thunk: ThunkType
+    cthunk: ThunkType
+    inputs: List
+    outputs: List
+    lazy: bool
+
+
+def rval_c_decorator(func: Any) -> Rval_c:
+    return func
+
+
+# Caching GpuCAReduceCuda
 class COp(Op, CLinkerOp):
     """An `Op` with a C implementation."""
 
@@ -625,17 +667,18 @@ class COp(Op, CLinkerOp):
         )
         thunk, node_input_filters, node_output_filters = outputs
 
-        def rval():
+        @rval_c_decorator
+        def rval_c():
             thunk()
             for o in node.outputs:
                 compute_map[o][0] = True
 
-        rval.thunk = thunk
-        rval.cthunk = thunk.cthunk
-        rval.inputs = node_input_storage
-        rval.outputs = node_output_storage
-        rval.lazy = False
-        return rval
+        rval_c.thunk = thunk
+        rval_c.cthunk = thunk.cthunk
+        rval_c.inputs = node_input_storage
+        rval_c.outputs = node_output_storage
+        rval_c.lazy = False
+        return rval_c
 
     def make_thunk(self, node, storage_map, compute_map, no_recycling, impl=None):
         """Create a thunk.
@@ -1051,7 +1094,7 @@ class ExternalCOp(COp):
                     f"No valid section marker was found in file {func_files[i]}"
                 )
 
-    def __get_op_params(self) -> Union[List[Text], List[Tuple[str, Any]]]:
+    def __get_op_params(self) -> Union[List, List[Text], List[Tuple[str, Any]]]:
         """Construct name, value pairs that will be turned into macros for use within the `Op`'s code.
 
         The names must be strings that are not a C keyword and the

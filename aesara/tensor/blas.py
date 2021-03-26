@@ -140,7 +140,9 @@ except ImportError:
     pass
 
 from functools import reduce
-from typing import Tuple, Union
+from typing import Any, Optional, Tuple, Union
+
+from typing_extensions import Protocol
 
 import aesara.scalar
 from aesara.compile.mode import optdb
@@ -205,7 +207,16 @@ except ImportError as e:
         )
 
 
+class Check_init_y(Protocol):
+    _result: Optional[bool]
+
+
+def check_init_y_decorator(func: Any) -> Check_init_y:
+    return func
+
+
 # If check_init_y() == True we need to initialize y when beta == 0.
+@check_init_y_decorator
 def check_init_y():
     if check_init_y._result is None:
         if not have_fblas:

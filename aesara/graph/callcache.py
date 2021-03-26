@@ -1,12 +1,13 @@
 import logging
 import pickle
+from typing import Callable, Dict, NoReturn, Optional, Tuple
 
 
 _logger = logging.getLogger("aesara.graph.callcache")
 
 
 class CallCache:
-    def __init__(self, filename=None):
+    def __init__(self, filename: Optional[str] = None):
         self.filename = filename
         try:
             if filename is None:
@@ -14,9 +15,9 @@ class CallCache:
             with open(filename) as f:
                 self.cache = pickle.load(f)
         except OSError:
-            self.cache = {}
+            self.cache: Dict = {}
 
-    def persist(self, filename=None):
+    def persist(self, filename: Optional[str] = None) -> NoReturn:
         """
         Cache "filename" as a pickle file
         """
@@ -25,7 +26,7 @@ class CallCache:
         with open(filename, "w") as f:
             pickle.dump(self.cache, f)
 
-    def call(self, fn, args=(), key=None):
+    def call(self, fn: Callable, args: Tuple = (), key: Optional[Tuple] = None):
         """
         Retrieve item from the cache(if available)
         based on a key
@@ -34,7 +35,7 @@ class CallCache:
         ----------
         key
             parameter to retrieve cache item
-        fn,args
+        fn, args
             key to retrieve if "key" is None
         """
         if key is None:
@@ -46,7 +47,7 @@ class CallCache:
             _logger.debug("cache hit %i", len(self.cache))
         return self.cache[key]
 
-    def __del__(self):
+    def __del__(self) -> NoReturn:
         try:
             if self.filename:
                 self.persist()

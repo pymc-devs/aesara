@@ -5,6 +5,7 @@ from collections import deque
 from copy import copy
 from itertools import count
 from typing import (
+    TYPE_CHECKING,
     Callable,
     Collection,
     Deque,
@@ -34,6 +35,11 @@ from aesara.graph.utils import (
     get_variable_trace_string,
 )
 from aesara.misc.ordered_set import OrderedSet
+
+
+if TYPE_CHECKING:
+    from aesara.graph.op import Op
+    from aesara.graph.type import Type
 
 
 T = TypeVar("T")
@@ -104,7 +110,7 @@ class Apply(Node):
 
     """
 
-    def __init__(self, op, inputs, outputs):
+    def __init__(self, op: Op, inputs: "List[Variable]", outputs: "List[Variable]"):
         self.op = op
         self.inputs = []
         self.tag = Scratchpad()
@@ -140,7 +146,7 @@ class Apply(Node):
                     f"The 'outputs' argument to Apply must contain Variable instances with no owner, not {output}"
                 )
 
-    def run_params(self):
+    def run_params(self) -> Union[object]:
         """
         Returns the params for the node, or NoParams if no params is set.
 
@@ -160,7 +166,7 @@ class Apply(Node):
             d["tag"] = t
         return d
 
-    def default_output(self):
+    def default_output(self) -> "Variable":
         """
         Returns the default output for this node.
 
@@ -193,16 +199,16 @@ class Apply(Node):
 
     """
 
-    def __str__(self):
+    def __str__(self) -> str:
         return op_as_string(self.inputs, self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
     def __asapply__(self):
         return self
 
-    def clone(self):
+    def clone(self) -> "Apply":
         """
         Duplicate this Apply instance with inputs = self.inputs.
 
@@ -222,7 +228,9 @@ class Apply(Node):
         cp.tag = copy(self.tag)
         return cp
 
-    def clone_with_new_inputs(self, inputs, strict=True):
+    def clone_with_new_inputs(
+        self, inputs: "List[Variable]", strict: bool = True
+    ) -> "Apply":
         """Duplicate this `Apply` instance in a new graph.
 
         Parameters
@@ -263,7 +271,7 @@ class Apply(Node):
             new_node.inputs = new_inputs
         return new_node
 
-    def get_parents(self):
+    def get_parents(self) -> "List[Variable]":
         return list(self.inputs)
 
     # convenience properties
@@ -383,7 +391,13 @@ class Variable(Node):
     # __slots__ = ['type', 'owner', 'index', 'name']
     __count__ = count(0)
 
-    def __init__(self, type, owner=None, index=None, name=None):
+    def __init__(
+        self,
+        type: Type,
+        owner: Optional[Apply] = None,
+        index: Optional[int] = None,
+        name: Optional[str] = None,
+    ):
         super().__init__()
 
         self.tag = ValidatingScratchpad("test_value", type.filter)
@@ -420,7 +434,7 @@ class Variable(Node):
 
         return self.tag.test_value
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return a str representation of the Variable."""
         if self.name is not None:
             return self.name
@@ -442,7 +456,7 @@ class Variable(Node):
         """
         return repr(self.get_test_value())
 
-    def __repr__(self, firstPass=True):
+    def __repr__(self, firstPass: bool = True):
         """Return a repr of the Variable.
 
         Return a printable name or description of the Variable. If
@@ -457,7 +471,7 @@ class Variable(Node):
                 pass
         return "\n".join(to_print)
 
-    def clone(self):
+    def clone(self) -> "Variable":
         """
         Return a new Variable like self.
 
@@ -499,12 +513,12 @@ class Variable(Node):
             "Subclasses of Variable must provide __ge__", self.__class__.__name__
         )
 
-    def get_parents(self):
+    def get_parents(self) -> List:
         if self.owner is not None:
             return [self.owner]
         return []
 
-    def eval(self, inputs_to_values=None):
+    def eval(self, inputs_to_values: Optional[Dict] = None):
         """
         Evaluates this variable.
 
@@ -545,7 +559,7 @@ class Variable(Node):
             inputs_to_values = {}
 
         if not hasattr(self, "_fn_cache"):
-            self._fn_cache = dict()
+            self._fn_cache: Dict = dict()
 
         inputs = tuple(sorted(inputs_to_values.keys(), key=id))
         if inputs not in self._fn_cache:
@@ -593,6 +607,14 @@ class Constant(Variable):
     Constant nodes make numerous optimizations possible (e.g. constant inlining
     in C code, constant folding, etc.)
 
+    Parameters
+    ----------
+    type : Type
+
+    data :
+
+    name : str or None
+
     Notes
     -----
     The data field is filtered by what is provided in the constructor for the
@@ -602,7 +624,7 @@ class Constant(Variable):
 
     # __slots__ = ['data']
 
-    def __init__(self, type, data, name=None):
+    def __init__(self, type: Type, data, name: Optional[str] = None):
         super().__init__(type, None, None, name)
         self.data = type.filter(data)
         add_tag_trace(self)
@@ -620,7 +642,7 @@ class Constant(Variable):
     def merge_signature(self):
         return self.signature()
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.name is not None:
             return self.name
         else:
@@ -838,7 +860,8 @@ def orphans_between(
 def applys_between(
     ins: Collection[Variable], outs: Iterable[Variable]
 ) -> Generator[Apply, None, None]:
-    """Extract the `Apply`s contained within the sub-graph between given input and output variables.
+    """Extract the `Apply`s contained within the sub-graph between
+    given input and output variables.
 
     Parameters
     ----------
@@ -906,8 +929,8 @@ def clone_get_equiv(
     outputs: List[Variable],
     copy_inputs: bool = True,
     copy_orphans: bool = True,
-    memo: Optional[Dict[Variable, Variable]] = None,
-):
+    memo: Optional[Dict] = None,
+) -> Dict:
     """
     Return a dictionary that maps from Variable and Apply nodes in the
     original graph to a new node (a clone) in a new graph.
@@ -932,6 +955,9 @@ def clone_get_equiv(
         If a dictionary is passed, this function will work in-place on that
         dictionary and return it.
 
+    Returns
+    -------
+    memo : dict
     """
     if memo is None:
         memo = {}
@@ -1046,6 +1072,10 @@ def general_toposort(
         If a dict is passed it will be filled with a mapping of
         nodes-to-clients for each node in the subgraph.
 
+    Returns
+    -------
+    rlist : list
+
     Notes
     -----
         deps(i) should behave like a pure function (no funny business with
@@ -1095,13 +1125,13 @@ def general_toposort(
     _clients: Dict[T, List[T]] = {}
     sources: Deque[T] = deque()
     search_res_len: int = 0
-    for node, children in search_res:
+    for _node, _children in search_res:
         search_res_len += 1
-        if children:
-            for child in children:
-                _clients.setdefault(child, []).append(node)
-        if not deps_cache.get(node):
-            sources.append(node)
+        if _children:
+            for child in _children:
+                _clients.setdefault(child, []).append(_node)
+        if not deps_cache.get(_node):
+            sources.append(_node)
 
     if clients is not None:
         clients.update(_clients)
@@ -1229,7 +1259,7 @@ def default_node_formatter(op, argstrings):
     return f"{op.op}({', '.join(argstrings)})"
 
 
-def io_connection_pattern(inputs, outputs):
+def io_connection_pattern(inputs: List[Variable], outputs: List[Variable]) -> List:
     """
     Returns the connection pattern of a subgraph defined by given
     inputs and outputs.
@@ -1341,16 +1371,16 @@ def as_string(
         viewing convenience).
 
     """
-    i = set(inputs)
+    i: Set = set(inputs)
 
-    orph = list(orphans_between(i, outputs))
+    orph: List = list(orphans_between(i, outputs))
 
-    multi: Set = set()
+    _multi: Set = set()
     seen: Set = set()
     for output in outputs:
         op = output.owner
         if op in seen:
-            multi.add(op)
+            _multi.add(op)
         else:
             seen.add(op)
     for op in applys_between(i, outputs):
@@ -1359,10 +1389,10 @@ def as_string(
             if input in i or input in orph or op2 is None:
                 continue
             if op2 in seen:
-                multi.add(op2)
+                _multi.add(op2)
             else:
                 seen.add(input.owner)
-    multi: Set = [x for x in multi]
+    multi: List = [x for x in _multi]
     done: Set = set()
 
     def multi_index(x):
@@ -1411,9 +1441,7 @@ def view_roots(node: Variable) -> List[Variable]:
         return [node]
 
 
-def list_of_nodes(
-    inputs: Collection[Variable], outputs: Iterable[Variable]
-) -> List[Apply]:
+def list_of_nodes(inputs: List[Variable], outputs: List[Variable]) -> List[Apply]:
 
     """Return the `Apply` nodes of the graph between `inputs` and `outputs`.
 
@@ -1504,7 +1532,12 @@ def nodes_constructed():
     Variable.remove_construction_observer(observer)
 
 
-def equal_computations(xs, ys, in_xs=None, in_ys=None):
+def equal_computations(
+    xs: List[Variable],
+    ys: List[Variable],
+    in_xs: Optional[List] = None,
+    in_ys: Optional[List] = None,
+):
     """Checks if Aesara graphs represent the same computations.
 
     The two lists `xs`, `ys` should have the same number of entries. The
@@ -1568,7 +1601,7 @@ def equal_computations(xs, ys, in_xs=None, in_ys=None):
             return False
 
     common = set(zip(in_xs, in_ys))
-    different = set()
+    different: Set = set()
     for dx, dy in zip(xs, ys):
         # We checked above that both dx and dy have an owner or not
         if not dx.owner:

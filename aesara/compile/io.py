@@ -5,8 +5,13 @@ Define `SymbolicInput`, `SymbolicOutput`, `In`, `Out`.
 
 
 import logging
+from typing import TYPE_CHECKING, Any, Optional
 
 from aesara.link.basic import Container
+
+
+if TYPE_CHECKING:
+    from aesara.graph.basic import Variable
 
 
 _logger = logging.getLogger("aesara.compile.io")
@@ -31,7 +36,7 @@ class SymbolicInput:
         Defaults to None. Value (see previous) will be replaced with this
         expression variable after each function call. If update is None, the
         update will be the default value of the input.
-    mutable : bool
+    mutable : bool or None
         Defaults to False if update is None, True if update is not None.
         True: permit the compiled function to modify the python object being
         passed as the input.
@@ -59,14 +64,14 @@ class SymbolicInput:
 
     def __init__(
         self,
-        variable,
-        name=None,
-        update=None,
-        mutable=None,
-        strict=False,
-        allow_downcast=None,
-        autoname=True,
-        implicit=False,
+        variable: Variable,
+        name: Any = None,
+        update: Optional[Variable] = None,
+        mutable: Optional[bool] = None,
+        strict: bool = False,
+        allow_downcast: Optional[bool] = None,
+        autoname: bool = True,
+        implicit: bool = False,
     ):
         assert implicit is not None  # Safety check.
         self.variable = variable
@@ -128,13 +133,13 @@ class In(SymbolicInput):
         Defaults to None. Value (see previous) will be replaced with this
         expression variable after each function call. If update is None, the
         update will be the default value of the input.
-    mutable : bool
+    mutable : bool or None
         Defaults to False if update is None, True if update is not None.
         True: permit the compiled function to modify the python object
         being passed as the input.
         False: do not permit the compiled function to modify the
         python object being passed as the input.
-    borrow : bool
+    borrow : bool or None
         Default : take the same value as mutable.
         True: permit the output of the compiled function to be aliased
         to the input.
@@ -171,17 +176,17 @@ class In(SymbolicInput):
     # try to keep it synchronized.
     def __init__(
         self,
-        variable,
-        name=None,
-        value=None,
-        update=None,
-        mutable=None,
-        strict=False,
-        allow_downcast=None,
-        autoname=True,
-        implicit=None,
-        borrow=None,
-        shared=False,
+        variable: Variable,
+        name: Any = None,
+        value: Any = None,
+        update: Optional[Variable] = None,
+        mutable: Optional[bool] = None,
+        strict: bool = False,
+        allow_downcast: Optional[bool] = None,
+        autoname: bool = True,
+        implicit: Optional[bool] = None,
+        borrow: Optional[bool] = None,
+        shared: bool = False,
     ):
         # if shared, an input's value comes from its persistent
         # storage, not from a default stored in the function or from
@@ -238,7 +243,7 @@ class SymbolicOutput:
 
     """
 
-    def __init__(self, variable, borrow=False):
+    def __init__(self, variable: Variable, borrow: bool = False):
         self.variable = variable
         self.borrow = borrow
 

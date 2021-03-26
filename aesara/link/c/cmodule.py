@@ -19,9 +19,10 @@ import textwrap
 import time
 import warnings
 from io import BytesIO, StringIO
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy.distutils
+from typing_extensions import Protocol
 
 import aesara
 
@@ -1643,6 +1644,15 @@ def std_include_dirs():
     return numpy_inc_dirs + python_inc_dirs + [gof_inc_dir]
 
 
+class Std_lib_dirs_and_libs(Protocol):
+    data: Optional[Tuple]
+
+
+def std_lib_dirs_and_libs_decorator(func: Any) -> Std_lib_dirs_and_libs:
+    return func
+
+
+@std_lib_dirs_and_libs_decorator
 def std_lib_dirs_and_libs():
     # We cache the results as on Windows, this trigger file access and
     # this method is called many times.
@@ -1765,6 +1775,15 @@ def gcc_version():
     return gcc_version_str
 
 
+class Gcc_llvm(Protocol):
+    is_llvm: Optional[bool]
+
+
+def gcc_llvm_decorator(func: Any) -> Gcc_llvm:
+    return func
+
+
+@gcc_llvm_decorator
 def gcc_llvm():
     """
     Detect if the g++ version used is the llvm one or not.

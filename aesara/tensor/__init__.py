@@ -43,7 +43,10 @@ def as_tensor_variable(
 
 @singledispatch
 def _as_tensor_variable(
-    x, name: Optional[str], ndim: Optional[int], **kwargs
+    x: Union[int, List, Apply, Variable],
+    name: Optional[str],
+    ndim: Optional[int],
+    **kwargs
 ) -> NoReturn:
     raise NotImplementedError(f"Cannot convert {x} to a tensor variable.")
 

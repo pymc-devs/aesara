@@ -92,8 +92,8 @@ def function_dump(
 
 
 def function(
-    inputs: List[Variable],
-    outputs: Optional[List[Variable]] = None,
+    inputs: "List[Variable]",
+    outputs: "Optional[List[Variable]]" = None,
     mode: Union[str] = None,
     updates: Optional[Union[List, Tuple, Iterable]] = None,
     givens: Optional[Union[List, Tuple, Iterable]] = None,
@@ -102,7 +102,7 @@ def function(
     name: Optional[str] = None,
     rebuild_strict: bool = True,
     allow_input_downcast: Optional[bool] = None,
-    profile: Optional[Union[ProfileStats, bool]] = None,
+    profile: "Optional[Union[ProfileStats, bool]]" = None,
     on_unused_input: Optional[str] = None,
 ):
     """

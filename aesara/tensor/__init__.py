@@ -43,7 +43,7 @@ def as_tensor_variable(
 
 @singledispatch
 def _as_tensor_variable(
-    x: Union[int, List, Apply, Variable],
+    x: "Union[int, List, Apply, Variable]",
     name: Optional[str],
     ndim: Optional[int],
     **kwargs

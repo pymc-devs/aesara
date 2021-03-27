@@ -110,7 +110,7 @@ class Apply(Node):
 
     """
 
-    def __init__(self, op: Op, inputs: "List[Variable]", outputs: "List[Variable]"):
+    def __init__(self, op: "Op", inputs: "List[Variable]", outputs: "List[Variable]"):
         self.op = op
         self.inputs = []
         self.tag = Scratchpad()
@@ -393,7 +393,7 @@ class Variable(Node):
 
     def __init__(
         self,
-        type: Type,
+        type: "Type",
         owner: Optional[Apply] = None,
         index: Optional[int] = None,
         name: Optional[str] = None,
@@ -624,7 +624,7 @@ class Constant(Variable):
 
     # __slots__ = ['data']
 
-    def __init__(self, type: Type, data, name: Optional[str] = None):
+    def __init__(self, type: "Type", data, name: Optional[str] = None):
         super().__init__(type, None, None, name)
         self.data = type.filter(data)
         add_tag_trace(self)

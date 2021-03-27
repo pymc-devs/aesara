@@ -11,11 +11,11 @@ you probably want to use aesara.tensor.[c,z,f,d,b,w,i,l,]scalar!
 """
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable as abcCallable
 from copy import copy
 from itertools import chain
 from textwrap import dedent
-from typing import Any, Dict, Mapping, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 from typing_extensions import Protocol
@@ -1084,7 +1084,7 @@ class ScalarOp(COp):
     def __init__(self, output_types_preference=None, name=None):
         self.name = name
         if output_types_preference is not None:
-            if not isinstance(output_types_preference, Callable):
+            if not isinstance(output_types_preference, abcCallable):
                 raise TypeError(
                     f"Expected a callable for the 'output_types_preference' argument to {self.__class__}. "
                     f"(got: {output_types_preference})"

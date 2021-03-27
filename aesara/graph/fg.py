@@ -670,7 +670,8 @@ class FunctionGraph(MetaObject):
         return order
 
     def orderings(self) -> Dict[Apply, List[Apply]]:
-        """Return `dict` `d` s.t. `d[node]` is a list of nodes that must be evaluated before `node` itself can be evaluated.
+        """Return `dict` `d` s.t. `d[node]` is a list of nodes that must
+        be evaluated before `node` itself can be evaluated.
 
         This is used primarily by the destroy_handler feature to ensure that
         the clients of any destroyed inputs have already computed their

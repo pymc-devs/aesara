@@ -64,9 +64,9 @@ class SymbolicInput:
 
     def __init__(
         self,
-        variable: Variable,
+        variable: "Variable",
         name: Any = None,
-        update: Optional[Variable] = None,
+        update: "Optional[Variable]" = None,
         mutable: Optional[bool] = None,
         strict: bool = False,
         allow_downcast: Optional[bool] = None,
@@ -176,10 +176,10 @@ class In(SymbolicInput):
     # try to keep it synchronized.
     def __init__(
         self,
-        variable: Variable,
+        variable: "Variable",
         name: Any = None,
         value: Any = None,
-        update: Optional[Variable] = None,
+        update: "Optional[Variable]" = None,
         mutable: Optional[bool] = None,
         strict: bool = False,
         allow_downcast: Optional[bool] = None,
@@ -243,7 +243,7 @@ class SymbolicOutput:
 
     """
 
-    def __init__(self, variable: Variable, borrow: bool = False):
+    def __init__(self, variable: "Variable", borrow: bool = False):
         self.variable = variable
         self.borrow = borrow
 

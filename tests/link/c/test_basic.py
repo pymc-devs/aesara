@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
 
-from aesara import config, function, shared
+from aesara.compile import shared
+from aesara.compile.function import function
 from aesara.compile.mode import Mode
+from aesara.configdefaults import config
 from aesara.graph.basic import Apply, Constant, Variable
 from aesara.graph.fg import FunctionGraph
 from aesara.graph.op import COp
@@ -205,7 +207,7 @@ def test_cthunk_str():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_literal_inlining():
     x, y, z = inputs()

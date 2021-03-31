@@ -11,10 +11,9 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from aesara.configdefaults import config
 from aesara.compile.function import function
-
 from aesara.compile.ops import DeepCopyOp
+from aesara.configdefaults import config
 from aesara.link.c.cmodule import GCC_compiler, default_blas_ldflags
 from aesara.link.c.exceptions import CompileError
 from aesara.tensor.type import dvectors
@@ -37,9 +36,7 @@ class MyOp(DeepCopyOp):
             rand = np.random.rand()
             return ('printf("%(rand)s\\n");' + code) % locals()
         # Else, no C code
-        return super(DeepCopyOp, self).c_code(
-            node, name, inames, onames, sub
-        )
+        return super(DeepCopyOp, self).c_code(node, name, inames, onames, sub)
 
 
 def test_compiler_error():

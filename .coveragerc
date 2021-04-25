@@ -1,2 +1,5 @@
 [run]
 relative_files = true
+[report]
+exclude_lines = 
+    if TYPE_CHECKING:

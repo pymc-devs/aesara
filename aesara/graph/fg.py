@@ -2,7 +2,7 @@
 import time
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, NoReturn, Optional, Tuple, Union, Set
+from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple, Union
 
 import aesara
 from aesara.configdefaults import config

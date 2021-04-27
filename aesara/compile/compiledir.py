@@ -9,8 +9,9 @@ import shutil
 
 import numpy as np
 
-import aesara
 from aesara.configdefaults import config
+from aesara.graph.op import Op
+from aesara.graph.type import CType
 from aesara.utils import flatten
 
 
@@ -54,9 +55,9 @@ def cleanup():
                                     have_npy_abi_version = True
                                 elif obj.startswith("c_compiler_str="):
                                     have_c_compiler = True
-                            elif isinstance(
-                                obj, (aesara.graph.op.Op, aesara.graph.type.CType)
-                            ) and hasattr(obj, "c_code_cache_version"):
+                            elif isinstance(obj, (Op, CType)) and hasattr(
+                                obj, "c_code_cache_version"
+                            ):
                                 v = obj.c_code_cache_version()
                                 if v not in [(), None] and v not in key[0]:
                                     # Reuse have_npy_abi_version to
@@ -125,13 +126,7 @@ def print_compiledir_content():
         with open(filename, "rb") as file:
             try:
                 keydata = pickle.load(file)
-                ops = list(
-                    {
-                        x
-                        for x in flatten(keydata.keys)
-                        if isinstance(x, aesara.graph.op.Op)
-                    }
-                )
+                ops = list({x for x in flatten(keydata.keys) if isinstance(x, Op)})
                 # Whatever the case, we count compilations for OP classes.
                 for op_class in {op.__class__ for op in ops}:
                     table_op_class.setdefault(op_class, 0)
@@ -140,11 +135,7 @@ def print_compiledir_content():
                     zeros_op += 1
                 else:
                     types = list(
-                        {
-                            x
-                            for x in flatten(keydata.keys)
-                            if isinstance(x, aesara.graph.type.CType)
-                        }
+                        {x for x in flatten(keydata.keys) if isinstance(x, CType)}
                     )
                     compile_start = compile_end = float("nan")
                     for fn in os.listdir(os.path.join(compiledir, dir)):

@@ -3,12 +3,11 @@ from functools import partial
 import numpy as np
 import pytest
 
-import aesara
-from aesara import shared
+from aesara.compile import shared
 from aesara.compile.builders import OpFromGraph
 from aesara.compile.function import function
 from aesara.configdefaults import config
-from aesara.gradient import DisconnectedType, Rop, grad
+from aesara.gradient import DisconnectedType, Rop, disconnected_type, grad
 from aesara.graph.null_type import NullType
 from aesara.tensor.math import dot, exp
 from aesara.tensor.math import round as aet_round
@@ -300,7 +299,7 @@ class TestOpFromGraph(unittest_tools.InferShapeTester):
             return y + aet_round(y)
 
         def f1_back(inputs, output_gradients):
-            return [output_gradients[0], aesara.gradient.disconnected_type()]
+            return [output_gradients[0], disconnected_type()]
 
         op = cls_ofg(
             inputs=[x, y],
@@ -312,7 +311,7 @@ class TestOpFromGraph(unittest_tools.InferShapeTester):
 
         c = op(x, y)
 
-        g1 = aesara.grad(c.sum(), x)
+        g1 = grad(c.sum(), x)
 
         out = g1.eval(
             {x: np.ones((5,), dtype=np.float32), y: np.ones((5,), dtype=np.float32)}

@@ -6,14 +6,17 @@ import time
 import numpy as np
 import pytest
 
-import aesara
 import aesara.gpuarray
 import aesara.tensor as aet
+from aesara.compile import shared
+from aesara.compile.debugmode import DebugMode, InvalidValueError
 from aesara.compile.function import function
 from aesara.compile.function.types import UnusedInputError
 from aesara.compile.io import In, Out
-from aesara.compile.mode import Mode
+from aesara.compile.mode import Mode, get_default_mode
 from aesara.configdefaults import config
+from aesara.gpuarray import gpuarray_shared_constructor
+from aesara.gpuarray.blas import GpuGemm
 from aesara.graph.basic import Constant
 from aesara.graph.fg import MissingInputError
 from aesara.graph.opt import OpKeyOptimizer, PatternSub
@@ -321,13 +324,13 @@ class TestFunction:
     def test_copy_share_memory(self):
         x = fscalar("x")
         # SharedVariable for tests, one of them has update
-        y = aesara.shared(value=1)
-        z = aesara.shared(value=2)
+        y = shared(value=1)
+        z = shared(value=2)
         out = tanh((x + y + 2) / (x + z - 0.2) ** 2)
 
         # Test for different linkers
         for mode in ["FAST_RUN", "FAST_COMPILE"]:
-            ori = aesara.function([x], [out], mode=mode, updates={z: z + 1})
+            ori = function([x], [out], mode=mode, updates={z: z + 1})
             cpy = ori.copy(share_memory=True)
 
             # Test if memories shared
@@ -355,17 +358,17 @@ class TestFunction:
 
     def test_swap_SharedVariable(self):
         i = iscalar()
-        x_list = aesara.shared(value=np.random.rand(10).astype(config.floatX))
+        x_list = shared(value=np.random.rand(10).astype(config.floatX))
 
         x = scalar("x")
         # SharedVariable for tests, one of them has update
-        y = aesara.shared(value=1, name="y")
-        z = aesara.shared(value=2, name="z")
-        m = aesara.shared(value=0, name="m")
+        y = shared(value=1, name="y")
+        z = shared(value=2, name="z")
+        m = shared(value=0, name="m")
 
         # SharedVariable to replace
-        y_rpl = aesara.shared(value=3, name="y_rpl")
-        z_rpl = aesara.shared(value=4, name="z_rpl")
+        y_rpl = shared(value=3, name="y_rpl")
+        z_rpl = shared(value=4, name="z_rpl")
         swap = {y: y_rpl, z: z_rpl}
         map_SV = {"y_rpl": y_rpl, "z_rpl": z_rpl}
 
@@ -375,7 +378,7 @@ class TestFunction:
         # for mode in ["FAST_RUN","FAST_COMPILE"]:
         second_time = False
         for mode in ["FAST_RUN", "FAST_COMPILE"]:
-            ori = aesara.function(
+            ori = function(
                 [i],
                 [out],
                 mode=mode,
@@ -422,25 +425,25 @@ class TestFunction:
         # A special testcase for logistic_sgd.py in Deep Learning Tutorial
         # This test assert that SharedVariable in different function have same storage
 
-        train_x = aesara.shared(value=np.random.rand(10, 10).astype(config.floatX))
-        test_x = aesara.shared(value=np.random.rand(10, 10).astype(config.floatX))
+        train_x = shared(value=np.random.rand(10, 10).astype(config.floatX))
+        test_x = shared(value=np.random.rand(10, 10).astype(config.floatX))
 
-        train_y = aesara.shared(value=np.random.rand(10, 1).astype(config.floatX))
-        test_y = aesara.shared(value=np.random.rand(10, 1).astype(config.floatX))
+        train_y = shared(value=np.random.rand(10, 1).astype(config.floatX))
+        test_y = shared(value=np.random.rand(10, 1).astype(config.floatX))
 
         i = iscalar("index")
         x = vector("x")
         y = vector("y")
         # this formular has no sense but for a test
         out = (aet_sum(x) - y) ** 2
-        train = aesara.function(
+        train = function(
             [i],
             out,
             givens={x: train_x[i], y: train_y[i]},
             updates={train_x: train_x + 0.1},
         )
 
-        test_def = aesara.function([i], out, givens={x: test_x[i], y: test_y[i]})
+        test_def = function([i], out, givens={x: test_x[i], y: test_y[i]})
         test_cpy = train.copy(
             swap={train_x: test_x, train_y: test_y}, delete_updates=True
         )
@@ -452,15 +455,15 @@ class TestFunction:
         w = iscalar("w")
         x = fscalar("x")
         # SharedVariable for tests, one of them has update
-        y = aesara.shared(value=1, name="y")
-        z = aesara.shared(value=2, name="z")
+        y = shared(value=1, name="y")
+        z = shared(value=2, name="z")
         out = x + y + z
 
         # Test for different linkers
         # for mode in ["FAST_RUN","FAST_COMPILE"]:
         # second_time = False
         for mode in ["FAST_RUN", "FAST_COMPILE"]:
-            ori = aesara.function([x], out, mode=mode, updates={z: z * 2})
+            ori = function([x], out, mode=mode, updates={z: z * 2})
             cpy = ori.copy(delete_updates=True)
 
             assert cpy(1)[0] == 4
@@ -470,10 +473,10 @@ class TestFunction:
         # Test if unused implicit and explicit inputs from delete_updates
         # are ignored as intended.
         for mode in ["FAST_RUN", "FAST_COMPILE"]:
-            ori = aesara.function([x], x, mode=mode, updates={z: z * 2})
+            ori = function([x], x, mode=mode, updates={z: z * 2})
             cpy = ori.copy(delete_updates=True)
 
-            ori = aesara.function([x, w], x, mode=mode, updates={z: z + w})
+            ori = function([x, w], x, mode=mode, updates={z: z + w})
             cpy = ori.copy(delete_updates=True)
 
     def test_shared_state0(self):
@@ -575,7 +578,7 @@ class TestFunction:
 
     def test_constant_output(self):
         # Test that if the output is a constant, we respect the aesara memory interface
-        f = aesara.function([], aet.constant([4]))
+        f = function([], aet.constant([4]))
         # print f.maker.fgraph.toposort()
         out = f()
         assert (out == 4).all()
@@ -586,16 +589,14 @@ class TestFunction:
         assert (out2 == 4).all()
 
         # Test that if the output is a constant and borrow, we respect the aesara memory interface
-        f = aesara.function([], Out(aet.constant([4]), borrow=True))
+        f = function([], Out(aet.constant([4]), borrow=True))
         # print f.maker.fgraph.toposort()
         out = f()
         assert (out == 4).all()
         out[0] = 3
         out2 = f()
 
-        if isinstance(
-            aesara.compile.mode.get_default_mode(), aesara.compile.debugmode.DebugMode
-        ):
+        if isinstance(get_default_mode(), DebugMode):
             # In DebugMode, we don't implement optimization based on borrow on the output.
             assert (out2 == 4).all()
         else:
@@ -612,12 +613,12 @@ class TestFunction:
         aval = np.random.rand(3, 3)
 
         # when borrow=False, test that a destroy map cannot alias output to input
-        f = aesara.function([In(a, borrow=False)], Out(a + 1, borrow=True))
+        f = function([In(a, borrow=False)], Out(a + 1, borrow=True))
         assert np.all(f(aval) == aval + 1)
         assert not np.may_share_memory(aval, f(aval))
 
         # when borrow=False, test that a viewmap cannot alias output to input
-        f = aesara.function([In(a, borrow=False)], Out(a[0, :], borrow=True))
+        f = function([In(a, borrow=False)], Out(a[0, :], borrow=True))
         assert np.all(f(aval) == aval[0, :])
         assert not np.may_share_memory(aval, f(aval))
 
@@ -696,17 +697,17 @@ class TestFunction:
 
         a, b = dscalars("a", "b")
         c = a + b
-        func = aesara.function([In(a, name="first"), In(b, value=1, name="second")], c)
-        x = func(first=1)
+        funct = function([In(a, name="first"), In(b, value=1, name="second")], c)
+        x = funct(first=1)
         try:
-            func(second=2)
+            funct(second=2)
         except TypeError:
-            assert func(first=1) == x
+            assert funct(first=1) == x
 
     def test_check_for_aliased_inputs(self):
         b = np.random.rand(5, 4)
-        s1 = aesara.shared(b)
-        s2 = aesara.shared(b)
+        s1 = shared(b)
+        s2 = shared(b)
         x1 = vector()
 
         # Assert cases we should not check for aliased inputs
@@ -718,7 +719,7 @@ class TestFunction:
         ]:
             if "inputs" not in d:
                 d["inputs"] = []
-            f = aesara.function(**d)
+            f = function(**d)
             assert not f._check_for_aliased_inputs, d
 
         # Assert cases we should check for aliased inputs
@@ -741,7 +742,7 @@ class TestFunction:
         ]:
             if "inputs" not in d:
                 d["inputs"] = []
-            f = aesara.function(**d)
+            f = function(**d)
 
             assert f._check_for_aliased_inputs, d
 
@@ -825,19 +826,15 @@ class TestPicklefunction:
                 raise
         assert f.trust_input is g.trust_input
         f(np.asarray(2.0))
-        with pytest.raises(
-            (ValueError, AttributeError, aesara.compile.debugmode.InvalidValueError)
-        ):
+        with pytest.raises((ValueError, AttributeError, InvalidValueError)):
             f(2.0)
         g(np.asarray(2.0))
-        with pytest.raises(
-            (ValueError, AttributeError, aesara.compile.debugmode.InvalidValueError)
-        ):
+        with pytest.raises((ValueError, AttributeError, InvalidValueError)):
             g(2.0)
 
     def test_output_keys(self):
         x = vector()
-        f = aesara.function([x], {"vec": x ** 2})
+        f = function([x], {"vec": x ** 2})
         o = f([2, 3, 4])
         assert isinstance(o, dict)
         assert np.allclose(o["vec"], [4, 9, 16])
@@ -1065,9 +1062,9 @@ class TestPicklefunction:
         b = np.random.rand(5, 4)
 
         x = matrix()
-        y = aesara.shared(b)
+        y = shared(b)
 
-        f = aesara.function([x], dot(x, y))
+        f = function([x], dot(x, y))
 
         from io import BytesIO
 
@@ -1170,12 +1167,12 @@ def test_sync_update():
 
     sizes = [100, 500, 1000, 2000, 5000, 10000, 20000, 40000]
     size = sizes[0]
-    w = aesara.gpuarray.gpuarray_shared_constructor(
+    w = gpuarray_shared_constructor(
         np.random.rand(size, size).astype("float32"),
         "w",
         target=tests.gpuarray.config.test_ctx_name,
     )
-    x = aesara.gpuarray.gpuarray_shared_constructor(
+    x = gpuarray_shared_constructor(
         np.random.rand(size, size).astype("float32"),
         "x",
         target=tests.gpuarray.config.test_ctx_name,
@@ -1183,12 +1180,9 @@ def test_sync_update():
 
     updates = [(w, w + np.asarray(0.001, "float32") * dot(x, x))]
 
-    f = aesara.function([], updates=updates, mode=tests.gpuarray.config.mode_with_gpu)
+    f = function([], updates=updates, mode=tests.gpuarray.config.mode_with_gpu)
     assert len(f.maker.fgraph.apply_nodes) == 1
-    assert any(
-        isinstance(n.op, aesara.gpuarray.blas.GpuGemm)
-        for n in f.maker.fgraph.apply_nodes
-    )
+    assert any(isinstance(n.op, GpuGemm) for n in f.maker.fgraph.apply_nodes)
     # Make sure libgpuarray have compile all kernels
     f()
     f.sync_shared()
@@ -1246,20 +1240,20 @@ def test_FunctionMaker_cache_optimizations():
     with config.change_flags(cache_optimizations=True):
         a = fmatrix("a")
         b = fmatrix("b")
-        c = aesara.shared(np.ones((10, 10), dtype=floatX))
-        d = aesara.shared(np.ones((10, 10), dtype=floatX))
+        c = shared(np.ones((10, 10), dtype=floatX))
+        d = shared(np.ones((10, 10), dtype=floatX))
         e = aet_sum(aet_sum(aet_sum(a ** 2 + b) + c) + d)
-        f1 = aesara.function([a, b], e, mode=mode)
+        f1 = function([a, b], e, mode=mode)
 
         # FIXME: We can do much better about testing this.
         assert os.path.exists(graph_db_file)
 
         m = fmatrix("x1")
         n = fmatrix("x2")
-        p = aesara.shared(np.ones((10, 10), dtype=floatX))
-        q = aesara.shared(np.ones((10, 10), dtype=floatX))
+        p = shared(np.ones((10, 10), dtype=floatX))
+        q = shared(np.ones((10, 10), dtype=floatX))
         j = aet_sum(aet_sum(aet_sum(m ** 2 + n) + p) + q)
-        f2 = aesara.function([m, n], j, mode=mode)
+        f2 = function([m, n], j, mode=mode)
 
         in1 = np.ones((10, 10), dtype=floatX)
         in2 = np.ones((10, 10), dtype=floatX)

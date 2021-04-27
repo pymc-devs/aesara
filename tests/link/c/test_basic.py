@@ -1,8 +1,10 @@
 import numpy as np
 import pytest
 
-import aesara
+from aesara.compile import shared
+from aesara.compile.function import function
 from aesara.compile.mode import Mode
+from aesara.configdefaults import config
 from aesara.graph.basic import Apply, Constant, Variable
 from aesara.graph.fg import FunctionGraph
 from aesara.graph.op import COp
@@ -181,7 +183,7 @@ def inputs():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_straightforward():
     x, y, z = inputs()
@@ -192,7 +194,7 @@ def test_clinker_straightforward():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_cthunk_str():
     x = double("x")
@@ -205,7 +207,7 @@ def test_cthunk_str():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_literal_inlining():
     x, y, z = inputs()
@@ -221,7 +223,7 @@ def test_clinker_literal_inlining():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_literal_cache():
     mode = Mode(linker="c")
@@ -235,15 +237,13 @@ def test_clinker_literal_cache():
             [-4.664007e-07, 9.468691e-01, -3.18862e-02],
             [-2.562651e-06, -3.188625e-02, 1.05226e00],
         ],
-        dtype=aesara.config.floatX,
+        dtype=config.floatX,
     )
 
-    orientationi = np.array(
-        [59.36276866, 1.06116353, 0.93797339], dtype=aesara.config.floatX
-    )
+    orientationi = np.array([59.36276866, 1.06116353, 0.93797339], dtype=config.floatX)
 
     for out1 in [A - input1[0] * np.identity(3), input1[0] * np.identity(3)]:
-        benchmark = aesara.function(
+        benchmark = function(
             inputs=[A, input1], outputs=[out1], on_unused_input="ignore", mode=mode
         )
 
@@ -251,7 +251,7 @@ def test_clinker_literal_cache():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_single_node():
     x, y, z = inputs()
@@ -262,7 +262,7 @@ def test_clinker_single_node():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_dups():
     # Testing that duplicate inputs are allowed.
@@ -275,7 +275,7 @@ def test_clinker_dups():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_not_used_inputs():
     # Testing that unused inputs are allowed.
@@ -287,7 +287,7 @@ def test_clinker_not_used_inputs():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_clinker_dups_inner():
     # Testing that duplicates are allowed inside the graph
@@ -304,7 +304,7 @@ def test_opwiseclinker_straightforward():
     e = add(mul(add(x, y), div(x, y)), bad_sub(bad_sub(x, y), z))
     lnk = OpWiseCLinker().accept(FunctionGraph([x, y, z], [e]))
     fn = lnk.make_function()
-    if aesara.config.cxx:
+    if config.cxx:
         assert fn(2.0, 2.0, 2.0) == 2.0
     else:
         # The python version of bad_sub always return -10.
@@ -340,7 +340,7 @@ def test_duallinker_straightforward():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_duallinker_mismatch():
     x, y, z = inputs()
@@ -382,7 +382,7 @@ add_fail = AddFail()
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_c_fail_error():
     x, y, z = inputs()
@@ -395,19 +395,19 @@ def test_c_fail_error():
 
 
 @pytest.mark.skipif(
-    not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
+    not config.cxx, reason="G++ not available, so we need to skip this test."
 )
 def test_shared_input_output():
     # Test bug reported on the mailing list by Alberto Orlandi
     # https://groups.google.com/d/topic/theano-users/6dLaEqc2R6g/discussion
     # The shared variable is both an input and an output of the function.
     inc = iscalar("inc")
-    state = aesara.shared(0)
+    state = shared(0)
     state.name = "state"
     linker = CLinker()
     mode = Mode(linker=linker)
-    f = aesara.function([inc], state, updates=[(state, state + inc)], mode=mode)
-    g = aesara.function([inc], state, updates=[(state, state + inc)])
+    f = function([inc], state, updates=[(state, state + inc)], mode=mode)
+    g = function([inc], state, updates=[(state, state + inc)])
 
     # Initial value
     f0 = f(0)
@@ -428,10 +428,10 @@ def test_shared_input_output():
     g0 = g(0)
     assert f0 == g0 == 5, (f0, g0)
 
-    vstate = aesara.shared(np.zeros(3, dtype="int32"))
+    vstate = shared(np.zeros(3, dtype="int32"))
     vstate.name = "vstate"
-    fv = aesara.function([inc], vstate, updates=[(vstate, vstate + inc)], mode=mode)
-    gv = aesara.function([inc], vstate, updates=[(vstate, vstate + inc)])
+    fv = function([inc], vstate, updates=[(vstate, vstate + inc)], mode=mode)
+    gv = function([inc], vstate, updates=[(vstate, vstate + inc)])
 
     # Initial value
     fv0 = fv(0)

@@ -1,15 +1,15 @@
 import pytest
 
-import aesara
+from aesara import function
 from aesara.tensor.type import scalar
 
 
 class TestDictionaryOutput:
     def test_output_dictionary(self):
-        # Tests that aesara.function works when outputs is a dictionary
+        # Tests that function works when outputs is a dictionary
 
         x = scalar()
-        f = aesara.function([x], outputs={"a": x, "c": x * 2, "b": x * 3, "1": x * 4})
+        f = function([x], outputs={"a": x, "c": x * 2, "b": x * 3, "1": x * 4})
 
         outputs = f(10.0)
 
@@ -24,7 +24,7 @@ class TestDictionaryOutput:
         x = scalar("x")
         y = scalar("y")
 
-        f = aesara.function([x, y], outputs={"a": x + y, "b": x * y})
+        f = function([x, y], outputs={"a": x + y, "b": x * y})
 
         assert f(2, 4) == {"a": 6, "b": 8}
         assert f(2, y=4) == f(2, 4)
@@ -39,7 +39,7 @@ class TestDictionaryOutput:
         e1 = scalar("1")
         e2 = scalar("2")
 
-        f = aesara.function(
+        f = function(
             [x, y, z, e1, e2], outputs={"x": x, "y": y, "z": z, "1": e1, "2": e2}
         )
 
@@ -59,7 +59,7 @@ class TestDictionaryOutput:
         a = x + y
         b = x * y
 
-        f = aesara.function([x, y], outputs={"a": a, "b": b})
+        f = function([x, y], outputs={"a": a, "b": b})
 
         a = scalar("a")
         b = scalar("b")
@@ -67,7 +67,7 @@ class TestDictionaryOutput:
         l = a + b
         r = a * b
 
-        g = aesara.function([a, b], outputs=[l, r])
+        g = function([a, b], outputs=[l, r])
 
         result = g(**f(5, 7))
 
@@ -75,11 +75,11 @@ class TestDictionaryOutput:
         assert result[1] == 420.0
 
     def test_output_list_still_works(self):
-        # Test that aesara.function works if outputs is a list.
+        # Test that function works if outputs is a list.
 
         x = scalar("x")
 
-        f = aesara.function([x], outputs=[x * 3, x * 2, x * 4, x])
+        f = function([x], outputs=[x * 3, x * 2, x * 4, x])
 
         result = f(5.0)
 
@@ -93,9 +93,7 @@ class TestDictionaryOutput:
 
         x = scalar("x")
 
-        f = aesara.function(
-            [x], outputs={"1": x, "2": 2 * x, "3": 3 * x}, mode="DEBUG_MODE"
-        )
+        f = function([x], outputs={"1": x, "2": 2 * x, "3": 3 * x}, mode="DEBUG_MODE")
 
         result = f(3.0)
 
@@ -108,7 +106,7 @@ class TestDictionaryOutput:
 
         x = scalar("x")
 
-        f = aesara.function([x], outputs=[x, 2 * x, 3 * x], mode="DEBUG_MODE")
+        f = function([x], outputs=[x, 2 * x, 3 * x], mode="DEBUG_MODE")
 
         result = f(5.0)
 
@@ -122,10 +120,10 @@ class TestDictionaryOutput:
         x = scalar("x")
 
         with pytest.raises(AssertionError):
-            aesara.function([x], outputs={1.0: x})
+            function([x], outputs={1.0: x})
 
         with pytest.raises(AssertionError):
-            aesara.function([x], outputs={1.0: x, "a": x ** 2})
+            function([x], outputs={1.0: x, "a": x ** 2})
 
         with pytest.raises(AssertionError):
-            aesara.function([x], outputs={(1, "b"): x, 1.0: x ** 2})
+            function([x], outputs={(1, "b"): x, 1.0: x ** 2})

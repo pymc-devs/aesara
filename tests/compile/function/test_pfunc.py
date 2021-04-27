@@ -1,12 +1,13 @@
 import numpy as np
 import pytest
 
-import aesara
-from aesara import tensor as aet
-from aesara.compile.function import pfunc
+import aesara.tensor as aet
+from aesara.compile import UnusedInputError
+from aesara.compile.function import function, pfunc
 from aesara.compile.io import In
 from aesara.compile.sharedvalue import shared
 from aesara.configdefaults import config
+from aesara.graph.fg import MissingInputError
 from aesara.misc.safe_asarray import _asarray
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.type import (
@@ -380,7 +381,7 @@ class TestPfunc:
         # the update_var has type matrix, and the update expression
         # is a broadcasted scalar, and that should be allowed.
         with pytest.raises(TypeError):
-            aesara.function(
+            function(
                 inputs=[],
                 outputs=[],
                 updates={output_var: output_var.sum().dimshuffle("x", "x")},
@@ -390,7 +391,7 @@ class TestPfunc:
         x, y = dmatrices("x", "y")
         z = shared(np.ones((2, 3)))
         with pytest.raises(ValueError):
-            aesara.function([x, y], [z], updates=[(z, (z + x + y)), (z, (z - x))])
+            function([x, y], [z], updates=[(z, (z + x + y)), (z, (z - x))])
 
     def test_givens(self):
         x = shared(0)
@@ -623,7 +624,7 @@ class TestPfunc:
         assert y.get_value() == 2
 
         # a is needed as input if y.default_update is used
-        with pytest.raises(aesara.graph.fg.MissingInputError):
+        with pytest.raises(MissingInputError):
             pfunc([], x)
 
     def test_default_updates_partial_graph(self):
@@ -657,8 +658,8 @@ class TestPfunc:
 
     def test_duplicate_inputs(self):
         x = lscalar("x")
-        with pytest.raises(aesara.compile.UnusedInputError):
-            aesara.function([x, x, x], x)
+        with pytest.raises(UnusedInputError):
+            function([x, x, x], x)
 
     def test_update_same(self):
         # There was a bug in CVM, triggered when a shared variable
@@ -675,8 +676,8 @@ class TestPfunc:
         # Is that all the comment above meant, or is the CVM intended
         # to add extra non-determinism? Or is the CVM meant to
         # deterministically but arbitrarily pick an order for the updates?
-        f = aesara.function([], [], updates=[(a, a), (b, (2 * b))])
-        g = aesara.function([], [], updates=[(a, (a * 2)), (b, b)])
+        f = function([], [], updates=[(a, a), (b, (2 * b))])
+        g = function([], [], updates=[(a, (a * 2)), (b, b)])
 
         f()
         assert a.get_value(borrow=True).shape == (), a.get_value()
@@ -693,8 +694,8 @@ class TestPfunc:
 
         # See comment in test_update_same about why we try both
         # shared variables.
-        f = aesara.function([], [], updates=[(a, a), (b, (2 * b - b))])
-        g = aesara.function([], [], updates=[(a, (a * 2 - a)), (b, b)])
+        f = function([], [], updates=[(a, a), (b, (2 * b - b))])
+        g = function([], [], updates=[(a, (a * 2 - a)), (b, b)])
 
         f()
         assert a.get_value(borrow=True).shape == (), a.get_value()
@@ -727,7 +728,7 @@ class TestAliasingRules:
     # library code.
 
     def shared(self, x):
-        return aesara.shared(x)
+        return shared(x)
 
     def test_shared_constructor_copies(self):
         # shared constructor makes copy
@@ -751,9 +752,7 @@ class TestAliasingRules:
 
         x = sparse.SparseType("csc", dtype="float64")()
         y = sparse.SparseType("csc", dtype="float64")()
-        f = aesara.function(
-            [In(x, mutable=True), In(y, mutable=True)], (x + y) + (x + y)
-        )
+        f = function([In(x, mutable=True), In(y, mutable=True)], (x + y) + (x + y))
         # Test 1. If the same variable is given twice
 
         # Compute bogus values
@@ -800,7 +799,7 @@ class TestAliasingRules:
         y = dvector()
         m1 = dmatrix()
         m2 = dmatrix()
-        f = aesara.function(
+        f = function(
             [
                 In(x, mutable=True),
                 In(y, mutable=True),
@@ -862,7 +861,7 @@ class TestAliasingRules:
         #   and a shares memory with b, b shares memory with c, but
         #   c does not share memory with a
 
-        f = aesara.function(
+        f = function(
             [
                 In(x, mutable=True),
                 In(y, mutable=True),
@@ -1011,7 +1010,7 @@ class TestAliasingRules:
         assert not np.may_share_memory(data_of(A), data_of(B))
 
         # aesara should have been smart enough to not make copies
-        if aesara.config.mode not in ["DebugMode", "DEBUG_MODE", "FAST_COMPILE"]:
+        if config.mode not in ["DebugMode", "DEBUG_MODE", "FAST_COMPILE"]:
             # We don't ask DebugMode and FAST_COMPILE not to make copy.
             # We have the right to do so.
             assert np.all(data_of(A) < 5)
@@ -1042,7 +1041,7 @@ class TestRebuildStrict:
         w = imatrix()
         x, y = ivectors("x", "y")
         z = x * y
-        f = aesara.function([w, y], z, givens=[(x, w)], rebuild_strict=False)
+        f = function([w, y], z, givens=[(x, w)], rebuild_strict=False)
         z_val = f(np.ones((3, 5), dtype="int32"), np.arange(5, dtype="int32"))
         assert z_val.ndim == 2
         assert np.all(z_val == np.ones((3, 5)) * np.arange(5))

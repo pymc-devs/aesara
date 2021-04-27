@@ -5,8 +5,10 @@ import tempfile
 import numpy as np
 import pytest
 
-import aesara as th
 import aesara.d3viz as d3v
+from aesara import compile
+from aesara.compile.function import function
+from aesara.configdefaults import config
 from aesara.d3viz.formatting import pydot_imported, pydot_imported_msg
 from tests.d3viz import models
 
@@ -32,30 +34,30 @@ class TestD3Viz:
 
     def test_mlp(self):
         m = models.Mlp()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         self.check(f)
 
     def test_mlp_profiled(self):
-        if th.config.mode in ("DebugMode", "DEBUG_MODE"):
+        if config.mode in ("DebugMode", "DEBUG_MODE"):
             pytest.skip("Can't profile in DebugMode")
         m = models.Mlp()
-        profile = th.compile.profiling.ProfileStats(False)
-        f = th.function(m.inputs, m.outputs, profile=profile)
+        profile = compile.profiling.ProfileStats(False)
+        f = function(m.inputs, m.outputs, profile=profile)
         x_val = self.rng.normal(0, 1, (1000, m.nfeatures))
         f(x_val)
         self.check(f)
 
     def test_ofg(self):
         m = models.Ofg()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         self.check(f)
 
     def test_ofg_nested(self):
         m = models.OfgNested()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         self.check(f)
 
     def test_ofg_simple(self):
         m = models.OfgSimple()
-        f = th.function(m.inputs, m.outputs)
+        f = function(m.inputs, m.outputs)
         self.check(f)

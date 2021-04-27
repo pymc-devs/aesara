@@ -8,7 +8,7 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 
-import aesara
+from aesara.compile import shared
 from aesara.compile.function import function, function_dump
 from aesara.compile.io import In
 from aesara.configdefaults import config
@@ -60,7 +60,7 @@ class TestFunctionIn:
     def test_in_strict(self):
 
         a = dvector()
-        b = aesara.shared(7)
+        b = shared(7)
         out = a + b
 
         f = function([In(a, strict=False)], out)
@@ -79,14 +79,14 @@ class TestFunctionIn:
     def test_explicit_shared_input(self):
         # This is not a test of the In class per se, but the In class relies
         # on the fact that shared variables cannot be explicit inputs
-        a = aesara.shared(1.0)
+        a = shared(1.0)
         with pytest.raises(TypeError):
             function([a], a + 1)
 
     def test_in_shared_variable(self):
         # Ensure that an error is raised if the In wrapped is used to wrap
         # a shared variable
-        a = aesara.shared(1.0)
+        a = shared(1.0)
         a_wrapped = In(a, update=a + 1)
         with pytest.raises(TypeError):
             function([a_wrapped])
@@ -130,7 +130,7 @@ class TestFunctionIn:
     def test_in_update_shared(self):
         # Test that using both In() with updates and shared variables with
         # updates in the same function behaves as expected
-        shared_var = aesara.shared(1.0)
+        shared_var = shared(1.0)
         a = dscalar("a")
         a_wrapped = In(a, value=0.0, update=shared_var)
         f = function([a_wrapped], [], updates={shared_var: a}, mode="FAST_RUN")
@@ -244,14 +244,14 @@ def test_pickle_unpickle_with_reoptimization():
         mode = "FAST_RUN"
     x1 = fmatrix("x1")
     x2 = fmatrix("x2")
-    x3 = aesara.shared(np.ones((10, 10), dtype=floatX))
-    x4 = aesara.shared(np.ones((10, 10), dtype=floatX))
+    x3 = shared(np.ones((10, 10), dtype=floatX))
+    x4 = shared(np.ones((10, 10), dtype=floatX))
     y = aet_sum(aet_sum(aet_sum(x1 ** 2 + x2) + x3) + x4)
 
     updates = OrderedDict()
     updates[x3] = x3 + 1
     updates[x4] = x4 + 1
-    f = aesara.function([x1, x2], y, updates=updates, mode=mode)
+    f = function([x1, x2], y, updates=updates, mode=mode)
 
     # now pickle the compiled aesara fn
     string_pkl = pickle.dumps(f, -1)
@@ -276,14 +276,14 @@ def test_pickle_unpickle_without_reoptimization():
         mode = "FAST_RUN"
     x1 = fmatrix("x1")
     x2 = fmatrix("x2")
-    x3 = aesara.shared(np.ones((10, 10), dtype=floatX))
-    x4 = aesara.shared(np.ones((10, 10), dtype=floatX))
+    x3 = shared(np.ones((10, 10), dtype=floatX))
+    x4 = shared(np.ones((10, 10), dtype=floatX))
     y = aet_sum(aet_sum(aet_sum(x1 ** 2 + x2) + x3) + x4)
 
     updates = OrderedDict()
     updates[x3] = x3 + 1
     updates[x4] = x4 + 1
-    f = aesara.function([x1, x2], y, updates=updates, mode=mode)
+    f = function([x1, x2], y, updates=updates, mode=mode)
 
     # now pickle the compiled aesara fn
     string_pkl = pickle.dumps(f, -1)

@@ -1837,8 +1837,10 @@ def local_mul_zero(fgraph, node):
                 value = get_scalar_constant_value(i)
             except NotScalarConstantError:
                 continue
-            # print 'MUL by value', value, node.inputs
-            if value == 0:
+            # Print 'MUL by value', value, node.inputs.
+            # Validate code to optimize operation to result in array.
+            # E.g. We do not want't to "optimize" `a * [1, 0, 2]`` to 0.
+            if value.any() == 0:
                 # print '... returning zeros'
                 return _fill_chain(_asarray(0, dtype=otype.dtype), node.inputs)
 

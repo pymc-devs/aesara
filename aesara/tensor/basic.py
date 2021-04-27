@@ -262,7 +262,7 @@ def numpy_scalar(data):
         assert np.all(np.array([]) == data)
         raise EmptyConstantError()
     try:
-        np.complex(data)  # works for all numeric scalars
+        np.complex128(data)  # works for all numeric scalars
         return data
     except Exception:
         raise NotScalarConstantError(

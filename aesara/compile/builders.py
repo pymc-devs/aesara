@@ -3,15 +3,20 @@
 from collections import OrderedDict
 from functools import partial, reduce
 
-import aesara
-from aesara import tensor as aet
+import aesara.tensor as aet
 from aesara.compile.function.pfunc import rebuild_collect_shared
 from aesara.compile.function.types import orig_function
 from aesara.compile.mode import optdb
 from aesara.compile.sharedvalue import SharedVariable
 from aesara.configdefaults import config
-from aesara.gradient import DisconnectedType
-from aesara.graph.basic import Apply, Variable, graph_inputs, io_connection_pattern
+from aesara.gradient import DisconnectedType, Rop, grad
+from aesara.graph.basic import (
+    Apply,
+    Variable,
+    clone_replace,
+    graph_inputs,
+    io_connection_pattern,
+)
 from aesara.graph.fg import FunctionGraph
 from aesara.graph.null_type import NullType
 from aesara.graph.op import Op, ops_with_inner_function
@@ -441,7 +446,7 @@ class OpFromGraph(Op):
 
         output_grads = [out_t() for out_t in self.output_types]
         fn_grad = partial(
-            aesara.gradient.grad,
+            grad,
             cost=None,
             disconnected_inputs="ignore",
             return_disconnected="Disconnected",
@@ -559,7 +564,7 @@ class OpFromGraph(Op):
             return
 
         eval_points = [inp_t() for inp_t in self.input_types]
-        fn_rop = partial(aesara.gradient.Rop, wrt=local_inputs, eval_points=eval_points)
+        fn_rop = partial(Rop, wrt=local_inputs, eval_points=eval_points)
         TYPE_ERR_MSG = (
             "R_op overrides should be (single or list of)"
             "OpFromGraph | 'default' | None | 0 | callable, got %s"
@@ -786,7 +791,7 @@ class OpFromGraph(Op):
         # each shape call. Aesara optimizer will clean this up later, but this
         # will ask extra work to the optimizer.
         repl = dict(zip(self.local_inputs, node.inputs))
-        cloned = aesara.clone_replace(reduce(tuple.__add__, out_shp), replace=repl)
+        cloned = clone_replace(reduce(tuple.__add__, out_shp), replace=repl)
         ret = []
         used = 0
         for i in range(len(out_shp)):
@@ -824,7 +829,7 @@ def inline_ofg_expansion(fgraph, node):
         return False
     if not op.is_inline:
         return False
-    return aesara.clone_replace(
+    return clone_replace(
         op.local_outputs, {u: v for u, v in zip(node.op.local_inputs, node.inputs)}
     )
 

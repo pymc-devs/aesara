@@ -12,7 +12,8 @@ from aesara.compile.sharedvalue import SharedVariable
 from aesara.graph.fg import FunctionGraph
 from aesara.graph.optdb import Query
 from aesara.link.numba.linker import NumbaLinker
-from aesara.scalar.basic import Composite
+from aesara.scalar.basic import Composite, scalar_minimum
+from aesara.scalar.basic_scipy import gammainc
 from aesara.tensor import subtensor as aet_subtensor
 from aesara.tensor.elemwise import Elemwise
 from aesara.tensor.type import scalar
@@ -84,6 +85,33 @@ def compare_numba_and_py(
 def test_Elemwise(inputs, input_vals, output_fn):
     out_fg = FunctionGraph(inputs, [output_fn(*inputs)])
     compare_numba_and_py(out_fg, input_vals)
+
+
+@pytest.mark.parametrize(
+    "scalar_op, input_values",
+    [
+        (
+            lambda x, y: x > y,
+            [np.array(10).astype(config.floatX), np.array(20).astype(config.floatX)],
+        ),  # LogicalComparison
+        (
+            lambda x, y: scalar_minimum(x, y),
+            [np.array(10).astype(config.floatX), np.array(20).astype(config.floatX)],
+        ),  # ScalarOp from numpy
+        # SciPy Ops are not supported until numba-scipy is fixed. See numba/numba-scipy#54
+        pytest.param(
+            gammainc,
+            [np.array(10).astype(config.floatX), np.array(20).astype(config.floatX)],
+            marks=pytest.mark.xfail,
+        ),  # ScalarOp from scipy.special
+    ],
+)
+def test_ScalarOp(scalar_op, input_values):
+    x_s = aes.float64("x")
+    y_s = aes.float64("y")
+    curr_op = scalar_op(x_s, y_s)
+    out_fg = FunctionGraph([x_s, y_s], [curr_op])
+    compare_numba_and_py(out_fg, [*input_values])
 
 
 @pytest.mark.parametrize(

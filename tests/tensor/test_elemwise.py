@@ -6,7 +6,6 @@ import pytest
 
 import aesara
 import aesara.scalar as aes
-import tests.unittest_tools as utt
 from aesara.compile.mode import Mode
 from aesara.configdefaults import config
 from aesara.graph.basic import Variable
@@ -16,20 +15,16 @@ from aesara.link.c.basic import CLinker, OpWiseCLinker
 from aesara.tensor import as_tensor_variable
 from aesara.tensor.basic import second
 from aesara.tensor.elemwise import CAReduce, DimShuffle, Elemwise
-from aesara.tensor.math import all as aet_all
-from aesara.tensor.math import any as aet_any
 from aesara.tensor.type import (
     TensorType,
     bmatrix,
     bscalar,
-    discrete_dtypes,
     matrix,
     scalar,
     vector,
     vectors,
 )
 from tests import unittest_tools
-from tests.tensor.test_math import reduce_bitwise_and
 
 
 class TestDimShuffle(unittest_tools.InferShapeTester):
@@ -311,204 +306,48 @@ class TestBroadcast:
 
 
 class TestCAReduce(unittest_tools.InferShapeTester):
-    op = CAReduce
     cases = [
-        ((5, 6), None),
-        ((5, 6), (0, 1)),
-        ((5, 6), (0,)),
-        ((5, 6), (1,)),
-        ((5, 6), (-1,)),
-        ((5, 6), (-2,)),
-        ((5, 6), ()),
-        ((2, 3, 4, 5), (0, 1, 3)),
-        ((2, 3, 4, 5), (-2, -3)),
-        ((5, 0), None),
-        ((5, 0), (0,)),
-        ((5, 0), (1,)),
-        ((5, 0), ()),
-        ((), None),
-        ((), ()),
+        ((5, 6), (0,), (6,)),
+        ((5, 6), None, ()),
+        ((5, 6), (), (5, 6)),
+        ((5, 6), (-1,), (5,)),
     ]
-    type = TensorType
 
-    def with_mode(
-        self,
-        mode,
-        scalar_op=aes.add,
-        dtype="floatX",
-        pre_scalar_op=None,
-        test_nan=False,
-        tensor_op=None,
-    ):
-        for xsh, tosum in self.cases:
-            if dtype == "floatX":
-                dtype = aesara.config.floatX
-            x = self.type(dtype, [(entry == 1) for entry in xsh])("x")
-            d = {}
-            if pre_scalar_op is not None:
-                d = {"pre_scalar_op": pre_scalar_op}
-            if tensor_op is None:
-                e = as_tensor_variable(self.op(scalar_op, axis=tosum, **d)(x))
+    def check_out_shape(self, mode, op, dtype):
+        if dtype == "floatX":
+            dtype = aesara.config.floatX
+
+        for inp_shape, axis, out_shape in self.cases:
+            xv = np.asarray(np.random.rand(*inp_shape), dtype=dtype)
+
+            if axis is None:
+                broadcastable = [True]
             else:
-                e = as_tensor_variable(tensor_op(x, axis=tosum, **d))
+                broadcastable = [True if len(axis) == 1 else False]
+                axis = np.asarray(axis)
 
-            if tosum is None:
-                tosum = list(range(len(xsh)))
+            axis_var = TensorType(aesara.config.floatX, broadcastable)("axis")
 
-            f = aesara.function([x], e, mode=mode)
-            xv = np.asarray(np.random.rand(*xsh))
+            x = TensorType(dtype, [(entry == 1) for entry in inp_shape])("x")
+            e = as_tensor_variable(CAReduce(op)(x, axis))
 
-            if dtype not in discrete_dtypes:
-                xv = np.asarray(xv, dtype=dtype)
-            else:
-                xv = np.asarray(xv < 0.5, dtype=dtype)
+            f = aesara.function([x, axis_var], e, mode=mode, on_unused_input="ignore")
+            f_xv = f(xv, axis)
 
-            if test_nan and xv.size > 0:
-                if len(xsh) > 0:
-                    xv = xv.flatten()
-                    xv[0] = np.nan
-                    xv = xv.reshape(*xsh)
-                else:
-                    xv = np.asarray(np.nan, dtype=dtype)
-            zv = xv
-            if pre_scalar_op is not None:
-                zv = Elemwise(scalar_op=pre_scalar_op)(x).eval({x: xv})
-
-            if len(tosum) > 1 and any([a < 0 for a in tosum]):
-                # In that case, we need to use the good order of axis
-                # in the reduction.
-                axis2 = []
-                for a in tosum:
-                    if a < 0:
-                        axis2.append(a + len(xsh))
-                    else:
-                        axis2.append(a)
-                assert len(axis2) == len(tosum)
-                tosum = tuple(axis2)
-            if tensor_op == aet_all:
-                for axis in reversed(sorted(tosum)):
-                    zv = np.all(zv, axis)
-                if len(tosum) == 0:
-                    zv = zv != 0
-            elif tensor_op == aet_any:
-                for axis in reversed(sorted(tosum)):
-                    zv = np.any(zv, axis)
-                if len(tosum) == 0:
-                    zv = zv != 0
-            elif scalar_op == aes.add:
-                for axis in reversed(sorted(tosum)):
-                    zv = np.add.reduce(zv, axis)
-                if dtype == "bool":
-                    # np.add of a bool upcast, while CAReduce don't
-                    zv = zv.astype(dtype)
-            elif scalar_op == aes.mul:
-                for axis in reversed(sorted(tosum)):
-                    zv = np.multiply.reduce(zv, axis)
-            elif scalar_op == aes.scalar_maximum:
-                # There is no identity value for the maximum function
-                # So we can't support shape of dimensions 0.
-                if np.prod(zv.shape) == 0:
-                    continue
-                for axis in reversed(sorted(tosum)):
-                    zv = np.maximum.reduce(zv, axis)
-            elif scalar_op == aes.scalar_minimum:
-                # There is no identity value for the minimum function
-                # So we can't support shape of dimensions 0.
-                if np.prod(zv.shape) == 0:
-                    continue
-                for axis in reversed(sorted(tosum)):
-                    zv = np.minimum.reduce(zv, axis)
-            elif scalar_op == aes.or_:
-                for axis in reversed(sorted(tosum)):
-                    zv = np.bitwise_or.reduce(zv, axis)
-            elif scalar_op == aes.and_:
-                for axis in reversed(sorted(tosum)):
-                    zv = reduce_bitwise_and(zv, axis, dtype=dtype)
-            elif scalar_op == aes.xor:
-                # There is no identity value for the xor function
-                # So we can't support shape of dimensions 0.
-                if np.prod(zv.shape) == 0:
-                    continue
-                for axis in reversed(sorted(tosum)):
-                    zv = np.bitwise_xor.reduce(zv, axis)
-            else:
-                raise Exception(
-                    f"Test for CAReduce with scalar_op {scalar_op} not implemented"
-                )
-
-            if test_nan:
-                try:
-                    assert self.type.values_eq(f(xv), zv), (f(xv), zv)
-                except NotImplementedError:
-                    # GpuCAReduce don't implement all cases when size is 0
-                    assert xv.size == 0
-            else:
-                try:
-                    f_xv = f(xv)
-                    assert f_xv.shape == zv.shape, (f_xv, zv)
-                    utt.assert_allclose(zv, f_xv)
-                except NotImplementedError:
-                    # GpuCAReduce don't implement all cases when size is 0
-                    assert xv.size == 0
-
-            x = self.type(dtype, [(entry == 1) for entry in xsh])("x")
-            if tensor_op is None:
-                e = self.op(scalar_op, axis=tosum)(x)
-            else:
-                e = tensor_op(x, axis=tosum)
-            if tosum is None:
-                tosum = list(range(len(xsh)))
-            f = aesara.function([x], e.shape, mode=mode)
-            if not (
-                scalar_op in [aes.scalar_maximum, aes.scalar_minimum]
-                and (xsh == () or np.prod(xsh) == 0)
-            ):
-                try:
-                    assert all(f(xv) == zv.shape)
-                except NotImplementedError:
-                    # GpuCAReduce don't implement all cases when size is 0
-                    assert xv.size == 0
+            assert f_xv.shape == out_shape
 
     def test_perform_noopt(self):
-        self.with_mode(Mode(linker="py", optimizer=None), aes.add, dtype="floatX")
+        self.check_out_shape(Mode(linker="py", optimizer=None), aes.add, dtype="floatX")
 
     def test_perform(self):
-        for dtype in ["bool", "floatX", "complex64", "complex128", "int8", "uint8"]:
-            self.with_mode(Mode(linker="py"), aes.add, dtype=dtype)
-            self.with_mode(Mode(linker="py"), aes.mul, dtype=dtype)
-            self.with_mode(Mode(linker="py"), aes.scalar_maximum, dtype=dtype)
-            self.with_mode(Mode(linker="py"), aes.scalar_minimum, dtype=dtype)
-            self.with_mode(Mode(linker="py"), aes.and_, dtype=dtype, tensor_op=aet_all)
-            self.with_mode(Mode(linker="py"), aes.or_, dtype=dtype, tensor_op=aet_any)
-        for dtype in ["int8", "uint8"]:
-            self.with_mode(Mode(linker="py"), aes.or_, dtype=dtype)
-            self.with_mode(Mode(linker="py"), aes.and_, dtype=dtype)
-            self.with_mode(Mode(linker="py"), aes.xor, dtype=dtype)
+        self.check_out_shape(Mode(linker="py"), aes.add, dtype="floatX")
+        self.check_out_shape(Mode(linker="py"), aes.mul, dtype="floatX")
+        self.check_out_shape(Mode(linker="py"), aes.scalar_maximum, dtype="floatX")
+        self.check_out_shape(Mode(linker="py"), aes.scalar_minimum, dtype="floatX")
 
-    def test_perform_nan(self):
-        for dtype in ["floatX", "complex64", "complex128"]:
-            self.with_mode(Mode(linker="py"), aes.add, dtype=dtype, test_nan=True)
-            self.with_mode(Mode(linker="py"), aes.mul, dtype=dtype, test_nan=True)
-            self.with_mode(
-                Mode(linker="py"), aes.scalar_maximum, dtype=dtype, test_nan=True
-            )
-            self.with_mode(
-                Mode(linker="py"), aes.scalar_minimum, dtype=dtype, test_nan=True
-            )
-            self.with_mode(
-                Mode(linker="py"),
-                aes.or_,
-                dtype=dtype,
-                test_nan=True,
-                tensor_op=aet_any,
-            )
-            self.with_mode(
-                Mode(linker="py"),
-                aes.and_,
-                dtype=dtype,
-                test_nan=True,
-                tensor_op=aet_all,
-            )
+        self.check_out_shape(Mode(linker="py"), aes.and_, dtype="bool")
+        self.check_out_shape(Mode(linker="py"), aes.or_, dtype="bool")
+        self.check_out_shape(Mode(linker="py"), aes.xor, dtype="bool")
 
     @pytest.mark.skipif(
         not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
@@ -516,64 +355,20 @@ class TestCAReduce(unittest_tools.InferShapeTester):
     def test_c_noopt(self):
         # We need to make sure that we cover the corner cases that
         # optimizations normally cover
-        self.with_mode(Mode(linker="c", optimizer=None), aes.add, dtype="floatX")
+        self.check_out_shape(Mode(linker="c", optimizer=None), aes.add, dtype="floatX")
 
-    @pytest.mark.slow
     @pytest.mark.skipif(
         not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
     )
     def test_c(self):
-        for dtype in ["bool", "floatX", "complex64", "complex128", "int8", "uint8"]:
-            self.with_mode(Mode(linker="c"), aes.add, dtype=dtype)
-            self.with_mode(Mode(linker="c"), aes.mul, dtype=dtype)
-        for dtype in ["bool", "floatX", "int8", "uint8"]:
-            self.with_mode(Mode(linker="c"), aes.scalar_minimum, dtype=dtype)
-            self.with_mode(Mode(linker="c"), aes.scalar_maximum, dtype=dtype)
-            self.with_mode(Mode(linker="c"), aes.and_, dtype=dtype, tensor_op=aet_all)
-            self.with_mode(Mode(linker="c"), aes.or_, dtype=dtype, tensor_op=aet_any)
-        for dtype in ["bool", "int8", "uint8"]:
-            self.with_mode(Mode(linker="c"), aes.or_, dtype=dtype)
-            self.with_mode(Mode(linker="c"), aes.and_, dtype=dtype)
-            self.with_mode(Mode(linker="c"), aes.xor, dtype=dtype)
+        self.check_out_shape(Mode(linker="c"), aes.add, dtype="floatX")
+        self.check_out_shape(Mode(linker="c"), aes.mul, dtype="floatX")
+        self.check_out_shape(Mode(linker="c"), aes.scalar_maximum, dtype="floatX")
+        self.check_out_shape(Mode(linker="c"), aes.scalar_minimum, dtype="floatX")
 
-    @pytest.mark.slow
-    @pytest.mark.skipif(
-        not aesara.config.cxx, reason="G++ not available, so we need to skip this test."
-    )
-    def test_c_nan(self):
-        for dtype in ["floatX", "complex64", "complex128"]:
-            self.with_mode(Mode(linker="c"), aes.add, dtype=dtype, test_nan=True)
-            self.with_mode(Mode(linker="c"), aes.mul, dtype=dtype, test_nan=True)
-        for dtype in ["floatX"]:
-            self.with_mode(
-                Mode(linker="c"), aes.scalar_minimum, dtype=dtype, test_nan=True
-            )
-            self.with_mode(
-                Mode(linker="c"), aes.scalar_maximum, dtype=dtype, test_nan=True
-            )
-
-    def test_infer_shape(self, dtype=None, pre_scalar_op=None):
-        if dtype is None:
-            dtype = aesara.config.floatX
-        for xsh, tosum in self.cases:
-            x = self.type(dtype, [(entry == 1) for entry in xsh])("x")
-            if pre_scalar_op is not None:
-                x = pre_scalar_op(x)
-            if tosum is None:
-                tosum = list(range(len(xsh)))
-            xv = np.asarray(np.random.rand(*xsh), dtype=dtype)
-            d = {}
-            if pre_scalar_op is not None:
-                xv = x.eval({x.owner.inputs[0]: xv})
-                d = {pre_scalar_op: pre_scalar_op}
-            self._compile_and_check(
-                [x],
-                [self.op(aes.add, axis=tosum, *d)(x)],
-                [xv],
-                self.op,
-                ["local_cut_useless_reduce"],
-                warn=0 not in xsh,
-            )
+        self.check_out_shape(Mode(linker="c"), aes.and_, dtype="bool")
+        self.check_out_shape(Mode(linker="c"), aes.or_, dtype="bool")
+        self.check_out_shape(Mode(linker="c"), aes.xor, dtype="bool")
 
 
 class TestBitOpReduceGrad:

@@ -1314,8 +1314,11 @@ class CAReduce(COp):
         else:
             from aesara.tensor.var import TensorConstant
 
-            assert isinstance(axis, TensorConstant)
-            axis = list(axis.data)
+            if isinstance(axis, TensorConstant):
+                axis = list(axis.data)
+            else:
+                axis = np.asarray(axis).tolist()
+
             for i, a in enumerate(axis):
                 if a >= inp_dims or a < -inp_dims:
                     raise ValueError(

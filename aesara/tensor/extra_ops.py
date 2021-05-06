@@ -1612,5 +1612,11 @@ class BroadcastTo(Op):
     def infer_shape(self, fgraph, node, ins_shapes):
         return [node.inputs[1:]]
 
+    def __str__(self):
+        return f"{type(self).__name__}"
+
+    def __repr__(self):
+        return f"{type(self).__name__}()"
+
 
 broadcast_to = BroadcastTo()

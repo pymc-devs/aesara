@@ -42,7 +42,6 @@ from aesara.tensor.basic import (
 from aesara.tensor.basic_opt import (
     FusionOptimizer,
     _fill_chain,
-    broadcast_like,
     encompasses_broadcastable,
     fuse_seqopt,
     local_fill_sink,
@@ -56,6 +55,7 @@ from aesara.tensor.basic_opt import (
 )
 from aesara.tensor.elemwise import CAReduce, DimShuffle, Elemwise
 from aesara.tensor.exceptions import NotScalarConstantError
+from aesara.tensor.extra_ops import BroadcastTo, broadcast_to
 from aesara.tensor.math import (
     All,
     Any,
@@ -1728,14 +1728,14 @@ def local_reduce_broadcastable(fgraph, node):
 @local_optimizer([Sum, Prod])
 def local_opt_alloc(fgraph, node):
     """
-    sum(alloc(constant,shapes...)) => constant*prod(shapes)
+    sum(alloc(constant,shapes...)) => constant*sum(shapes)
     or
     prod(alloc(constant,shapes...)) => constant**prod(shapes)
 
     """
     if isinstance(node.op, Sum) or isinstance(node.op, Prod):
         (node_inps,) = node.inputs
-        if node_inps.owner and isinstance(node_inps.owner.op, Alloc):
+        if node_inps.owner and (isinstance(node_inps.owner.op, (Alloc, BroadcastTo))):
             input = node_inps.owner.inputs[0]
             shapes = node_inps.owner.inputs[1:]
             try:
@@ -1858,7 +1858,7 @@ def local_div_to_inv(fgraph, node):
             new_out = cast(new_out, dtype=out.dtype)
         # The ones could have forced a specific length
         if new_out.type != out.type:
-            new_out = broadcast_like(new_out, out, fgraph)
+            new_out = broadcast_to(new_out, out.shape).astype(out.dtype)
         return [new_out]
     else:
         return False
@@ -1883,9 +1883,15 @@ def local_pow_canonicalize(fgraph, node):
     if node.op == aet_pow:
         cst = local_mul_canonizer.get_constant(node.inputs[1])
         if cst == 0:
-            return [broadcast_like(1, node.outputs[0], fgraph)]
+            return [
+                broadcast_to(1, node.outputs[0].shape).astype(node.outputs[0].dtype)
+            ]
         if cst == 1:
-            return [broadcast_like(node.inputs[0], node.outputs[0], fgraph)]
+            return [
+                broadcast_to(node.inputs[0], node.outputs[0].shape).astype(
+                    node.outputs[0].dtype
+                )
+            ]
     else:
         return False
 
@@ -1929,7 +1935,7 @@ def local_zero_div(fgraph, node):
         node.op.scalar_op, (aes.IntDiv, aes.TrueDiv)
     ):
         if local_mul_canonizer.get_constant(node.inputs[0]) == 0:
-            ret = broadcast_like(0, node.outputs[0], fgraph)
+            ret = broadcast_to(0, node.outputs[0].shape).astype(node.outputs[0].dtype)
             ret.tag.values_eq_approx = values_eq_approx_remove_nan
             return [ret]
 
@@ -2081,7 +2087,9 @@ def local_mul_specialize(fgraph, node):
                 has_neg ^= True  # toggles
             elif y == 0.0:
                 # if we find any zero, we just return right away
-                return [broadcast_like(0, node.outputs[0], fgraph)]
+                return [
+                    broadcast_to(0, node.outputs[0].shape).astype(node.outputs[0].dtype)
+                ]
             else:
                 new_inputs.append(input)
 
@@ -2106,14 +2114,26 @@ def local_mul_specialize(fgraph, node):
                         new_inputs = [m1] + new_inputs
                     rval = mul(*new_inputs)
 
-                return [broadcast_like(rval, node.outputs[0], fgraph)]
+                return [
+                    broadcast_to(rval, node.outputs[0].shape).astype(
+                        node.outputs[0].dtype
+                    )
+                ]
             else:
                 # there are no variable inputs to mul
                 # N.B. this could have been constant-folded...
                 if has_neg:
-                    return [broadcast_like(-1, node.outputs[0], fgraph)]
+                    return [
+                        broadcast_to(-1, node.outputs[0].shape).astype(
+                            node.outputs[0].dtype
+                        )
+                    ]
                 else:
-                    return [broadcast_like(1, node.outputs[0], fgraph)]
+                    return [
+                        broadcast_to(1, node.outputs[0].shape).astype(
+                            node.outputs[0].dtype
+                        )
+                    ]
 
 
 register_specialize(local_mul_specialize)

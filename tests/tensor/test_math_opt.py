@@ -16,7 +16,7 @@ from aesara.compile.function import function
 from aesara.compile.mode import Mode, get_default_mode, get_mode
 from aesara.compile.ops import DeepCopyOp, deep_copy_op
 from aesara.configdefaults import config
-from aesara.graph.basic import Constant
+from aesara.graph.basic import Constant, io_toposort
 from aesara.graph.fg import FunctionGraph
 from aesara.graph.opt import LocalOptGroup, TopoOptimizer, check_stack_trace, out2in
 from aesara.graph.optdb import Query
@@ -1802,20 +1802,16 @@ def test_log1p():
         inplace.log1p_inplace,
     ]
     f = function([x], -log(1 + (-x)), mode=m)
-    assert [node.op for node in f.maker.fgraph.toposort()] == [
-        neg,
-        inplace.log1p_inplace,
-        inplace.neg_inplace,
-    ]
+    topo = f.maker.fgraph.toposort()
+    assert all(
+        [
+            op in [node.op for node in topo]
+            for op in [neg, inplace.log1p_inplace, inplace.neg_inplace]
+        ]
+    )
 
     # check trickier cases (and use different dtype)
     y = fmatrix()
-    f = function([x, y], log(aet.fill(y, 1) + (x)), mode=m)
-    # the first three ops are Shape_i, Shape_i, and Dimshuffle
-    topo = f.maker.fgraph.toposort()
-    assert topo[-1].op == aet.alloc
-    assert log1p in [node.op for node in topo]
-
     f = function([x, y], log(0 + (x) + aet.fill(y, 1.0)), mode=m)
     topo = f.maker.fgraph.toposort()
     assert topo[-1].op == aet.alloc
@@ -2280,7 +2276,7 @@ def test_local_mul_specialize():
 
     f = function([v], v * (-1), mode=mode)
     nodes = [node.op for node in f.maker.fgraph.toposort()]
-    assert nodes == [neg]
+    assert neg in nodes
 
     f = function([v, m], v * 1 * (-m), mode=mode)
     nodes = [node.op for node in f.maker.fgraph.toposort()]
@@ -2343,7 +2339,7 @@ def test_local_pow_specialize():
 
     f = function([v], v ** 0, mode=mode)
     nodes = [node.op for node in f.maker.fgraph.toposort()]
-    assert nodes == [Shape_i(0), aet.alloc]
+    assert all([node in nodes for node in [Shape_i(0), aet.extra_ops.broadcast_to]])
     utt.assert_allclose(f(val), val ** 0)
 
     f = function([v], v ** 1, mode=mode)
@@ -2353,12 +2349,12 @@ def test_local_pow_specialize():
 
     f = function([v], v ** (-1), mode=mode)
     nodes = [node.op for node in f.maker.fgraph.toposort()]
-    assert nodes == [inv]
+    assert inv in nodes
     utt.assert_allclose(f(val_no0), val_no0 ** (-1))
 
     f = function([v], v ** 2, mode=mode)
     nodes = [node.op for node in f.maker.fgraph.toposort()]
-    assert nodes == [sqr]
+    assert sqr in nodes
     utt.assert_allclose(f(val), val ** 2)
 
     f = function([v], v ** (-2), mode=mode)
@@ -2428,7 +2424,13 @@ class TestFuncInverse:
         self.mode = mode.including("local_func_inv")
 
     def assert_func_pair_optimized(
-        self, func1, func2, data, should_copy=True, is_complex=False
+        self,
+        func1,
+        func2,
+        data,
+        should_copy=True,
+        is_complex=False,
+        is_first_input=False,
     ):
         # Check that a pair of funcs is optimized properly
 
@@ -2436,7 +2438,13 @@ class TestFuncInverse:
         o = func2(func1(x))
         f = function([x], o, mode=self.mode)
         delta = f(data) - data
-        topo = f.maker.fgraph.toposort()
+
+        if is_first_input:
+            topo = io_toposort(
+                f.maker.fgraph.inputs, [f.maker.fgraph.outputs[0].owner.inputs[0]]
+            )
+        else:
+            topo = f.maker.fgraph.toposort()
 
         if should_copy:
             acceptable_topo_lens = [1]
@@ -2472,11 +2480,11 @@ class TestFuncInverse:
         self.assert_func_pair_optimized(neg, neg, dx)
         cx = dx + complex(0, 1) * (dx + 0.01)
         self.assert_func_pair_optimized(conj, conj, cx, is_complex=True)
-
         # Test that non-inverse functions are ran normally
         self.assert_func_pair_optimized(
-            conj, neg, cx, should_copy=False, is_complex=True
+            conj, neg, cx, should_copy=False, is_complex=True, is_first_input=True
         )
+
         dx = np.random.rand(5, 4).astype("float32") + 0.01
         self.assert_func_pair_optimized(rad2deg, rad2deg, dx, should_copy=False)
         self.assert_func_pair_optimized(rad2deg, cosh, dx, should_copy=False)
@@ -3317,7 +3325,7 @@ class TestLocalSumProd:
 
         for t_like, n_like, nb_nodes in [
             (aet.zeros_like, np.zeros_like, (1, 3, 3, 2)),
-            (aet.ones_like, np.ones_like, (5, 5, 5, 6)),
+            (aet.ones_like, np.ones_like, (6, 6, 6, 7)),
         ]:
             # test sum
             f = function([a], t_like(a).sum(None), mode=mode)
@@ -3328,20 +3336,14 @@ class TestLocalSumProd:
             utt.assert_allclose(f(input), n_like(input).sum())
             assert len(f.maker.fgraph.apply_nodes) == nb_nodes[0]
 
-            for d in range(3):
-                f = function([a], t_like(a).sum(d), mode=mode)
-                utt.assert_allclose(f(input), n_like(input).sum(d))
-                assert len(f.maker.fgraph.apply_nodes) == nb_nodes[1]
-                topo = f.maker.fgraph.toposort()
-                assert topo[-1].op == aet.alloc
-                assert not any([isinstance(node.op, Sum) for node in topo])
-            for i in range(3):
-                f = function([a], t_like(a).sum(i), mode=mode)
-                utt.assert_allclose(f(input), n_like(input).sum(i))
-                assert len(f.maker.fgraph.apply_nodes) == nb_nodes[2]
-                topo = f.maker.fgraph.toposort()
-                assert topo[-1].op == aet.alloc
-                assert not any([isinstance(node.op, Sum) for node in topo])
+            for i in range(1, 3):
+                for d in range(3):
+                    f = function([a], t_like(a).sum(d), mode=mode)
+                    utt.assert_allclose(f(input), n_like(input).sum(d))
+                    assert len(f.maker.fgraph.apply_nodes) == nb_nodes[i]
+                    topo = f.maker.fgraph.toposort()
+                    assert any([node.op == aet.alloc for node in topo])
+                    assert not any([isinstance(node.op, Sum) for node in topo])
 
             # test prod
             f = function([a], t_like(a).prod(None), mode=mode)
@@ -3352,20 +3354,14 @@ class TestLocalSumProd:
             utt.assert_allclose(f(input), n_like(input).prod())
             # assert len(f.maker.fgraph.apply_nodes) == nb_nodes[0]
 
-            for d in range(3):
-                f = function([a], t_like(a).prod(d), mode=mode)
-                utt.assert_allclose(f(input), n_like(input).prod(d))
-                # assert len(f.maker.fgraph.apply_nodes) == nb_nodes[1]
-                topo = f.maker.fgraph.toposort()
-                assert topo[-1].op == aet.alloc
-                assert not any([isinstance(node.op, Prod) for node in topo])
-            for i in range(3):
-                f = function([a], t_like(a).prod(i), mode=mode)
-                utt.assert_allclose(f(input), n_like(input).prod(i))
-                # assert len(f.maker.fgraph.apply_nodes) == nb_nodes[2]
-                topo = f.maker.fgraph.toposort()
-                assert topo[-1].op == aet.alloc
-                assert not any([isinstance(node.op, Prod) for node in topo])
+            for i in range(1, 3):
+                for d in range(3):
+                    f = function([a], t_like(a).prod(d), mode=mode)
+                    utt.assert_allclose(f(input), n_like(input).prod(d))
+                    # assert len(f.maker.fgraph.apply_nodes) == nb_nodes[i]
+                    topo = f.maker.fgraph.toposort()
+                    assert any([node.op == aet.alloc for node in topo])
+                    assert not any([isinstance(node.op, Prod) for node in topo])
 
             with config.change_flags(warn__sum_sum_bug=False):
                 for d, dd in [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]:
@@ -3373,7 +3369,7 @@ class TestLocalSumProd:
                     utt.assert_allclose(f(input), n_like(input).sum(d).sum(dd))
                     assert len(f.maker.fgraph.apply_nodes) == nb_nodes[3]
                     topo = f.maker.fgraph.toposort()
-                    assert topo[-1].op == aet.alloc
+                    assert any([node.op == aet.alloc for node in topo])
                     assert not any([isinstance(node.op, Sum) for node in topo])
 
     def test_local_sum_sum_int8(self):
@@ -3522,8 +3518,12 @@ class TestLocalReduce:
             f = function([vx, vy, vz], out, on_unused_input="ignore", mode=self.mode)
             assert (f(x, y, z) == res).all(), out
             topo = f.maker.fgraph.toposort()
-            assert len(topo) <= 2, out
-            assert isinstance(topo[-1].op, Elemwise), out
+            assert any(
+                [
+                    isinstance(topo[-1].op, node)
+                    for node in [Elemwise, aet.extra_ops.BroadcastTo]
+                ]
+            ), out
 
         # Test different axis for the join and the reduction
         # We must force the dtype, of otherwise, this tests will fail

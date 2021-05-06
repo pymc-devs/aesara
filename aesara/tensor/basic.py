@@ -355,6 +355,7 @@ def get_scalar_constant_value(
                     Alloc,
                     DimShuffle,
                     Rebroadcast,
+                    aesara.tensor.extra_ops.BroadcastTo,
                     # outputguard is only used in debugmode but we
                     # keep it here to avoid problems with old pickels.
                     compile.ops.OutputGuard,

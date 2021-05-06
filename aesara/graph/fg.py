@@ -510,7 +510,10 @@ class FunctionGraph(MetaObject):
         if verbose is None:
             verbose = config.optimizer_verbose
         if verbose:
-            print(reason, var, new_var)
+            print(
+                f"{reason}:\t{var.owner or var} [{var.name or var.auto_name}] -> "
+                f"{new_var.owner or new_var} [{new_var.name or new_var.auto_name}]"
+            )
 
         new_var = var.type.filter_variable(new_var, allow_convert=True)
 

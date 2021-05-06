@@ -8,6 +8,7 @@ import numpy as np
 from aesara import tensor as aet
 from aesara.configdefaults import config
 from aesara.graph.basic import Constant, Variable
+from aesara.graph.utils import MetaType
 from aesara.scalar import ComplexError, IntegerDivisionError
 from aesara.tensor.exceptions import AdvancedIndexingError
 from aesara.tensor.type import TensorType
@@ -1038,3 +1039,25 @@ class TensorConstant(_tensor_py_operators, Constant):
 
 
 TensorType.Constant = TensorConstant
+
+
+class DenseVariableMeta(MetaType):
+    def __instancecheck__(self, o):
+        if type(o) == TensorVariable or isinstance(o, DenseVariableMeta):
+            return True
+        return False
+
+
+class DenseTensorVariable(TensorType, metaclass=DenseVariableMeta):
+    """A `Variable` for dense tensors."""
+
+
+class DenseConstantMeta(MetaType):
+    def __instancecheck__(self, o):
+        if type(o) == TensorConstant or isinstance(o, DenseConstantMeta):
+            return True
+        return False
+
+
+class DenseTensorConstant(TensorType, metaclass=DenseConstantMeta):
+    """A `Constant` for dense tensors."""

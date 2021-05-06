@@ -571,7 +571,7 @@ class ReplaceValidate(History, Validator):
 
         for r, new_r in replacements:
             try:
-                fgraph.replace(r, new_r, reason=reason, verbose=False, **kwargs)
+                fgraph.replace(r, new_r, reason=reason, verbose=verbose, **kwargs)
             except Exception as e:
                 msg = str(e)
                 s1 = "The type of the replacement must be the same"
@@ -626,8 +626,6 @@ class ReplaceValidate(History, Validator):
                 print(
                     "Scan removed", nb, nb2, getattr(reason, "name", reason), r, new_r
                 )
-        if verbose:
-            print(reason, r, new_r)
         # The return is needed by replace_all_validate_remove
         return chk
 

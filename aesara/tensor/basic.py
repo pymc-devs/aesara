@@ -344,8 +344,13 @@ def get_scalar_constant_value(
 
             if isinstance(data, np.ndarray):
                 return numpy_scalar(data).copy()
-            else:
-                return data
+
+            from aesara.sparse.type import SparseType
+
+            if isinstance(v.type, SparseType):
+                raise NotScalarConstantError()
+
+            return data
 
         if not only_process_constants and getattr(v, "owner", None) and max_recur > 0:
             max_recur -= 1

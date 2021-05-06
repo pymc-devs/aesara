@@ -124,6 +124,11 @@ class GlobalOptimizer(abc.ABC):
             _optimizer_idx[0] += 1
         return self._optimizer_idx
 
+    def __str__(self):
+        if hasattr(self, "name"):
+            return f"{type(self).__name__}[{self.name}]"
+        return repr(self)
+
 
 class FromFunctionOptimizer(GlobalOptimizer):
     """A `GlobalOptimizer` constructed from a given function."""
@@ -1074,6 +1079,11 @@ class LocalOptimizer(abc.ABC):
     def print_summary(self, stream=sys.stdout, level=0, depth=-1):
         print(f"{' ' * level}{self.__class__.__name__} id={id(self)}", file=stream)
 
+    def __str__(self):
+        if hasattr(self, "name"):
+            return f"{type(self).__name__}[{self.name}]"
+        return repr(self)
+
 
 class LocalMetaOptimizer(LocalOptimizer):
     """
@@ -1253,6 +1263,14 @@ def local_optimizer(tracks, inplace=False, requirements=()):
 class LocalOptGroup(LocalOptimizer):
     """Takes a list of LocalOptimizer and applies them to the node.
 
+    This is where the "tracks" parameters are largely used.  If you set
+    one of the `LocalOptimizer` in `LocalOptGroup.optimizers` to track a
+    specific `Op` instance, this optimizer will only apply said
+    `LocalOptimizer` when it's acting on a node that exactly matches the object
+    object tracked `Op` (the matching is performed using a `dict` lookup).
+
+    TODO: Use type-based matching (e.g. like `singledispatch`).
+
     Parameters
     ----------
     optimizers :
@@ -1269,10 +1287,12 @@ class LocalOptGroup(LocalOptimizer):
 
     """
 
-    def __init__(self, *optimizers, **kwargs):
+    def __init__(self, *optimizers, apply_all_opts=False, profile=False, name=None):
+        self.name = name
+
         if len(optimizers) == 1 and isinstance(optimizers[0], list):
-            # This happen when created by LocalGroupDB.
             optimizers = tuple(optimizers[0])
+
         self.opts = optimizers
         assert isinstance(self.opts, tuple)
 
@@ -1281,10 +1301,10 @@ class LocalOptGroup(LocalOptimizer):
             getattr(opt, "retains_inputs", False) for opt in optimizers
         )
 
-        self.apply_all_opts = kwargs.pop("apply_all_opts", False)
-        self.profile = kwargs.pop("profile", False)
-        self.track_map = defaultdict(lambda: [])
-        assert len(kwargs) == 0
+        self.apply_all_opts = apply_all_opts
+        self.profile = profile
+        self.track_map = defaultdict(list)
+
         if self.profile:
             self.time_opts = {}
             self.process_count = {}
@@ -1304,12 +1324,8 @@ class LocalOptGroup(LocalOptimizer):
                 for c in tracks:
                     self.track_map[c].append(o)
 
-    def __str__(self):
-        return getattr(
-            self,
-            "__name__",
-            f"LocalOptGroup({','.join([str(o) for o in self.opts])})",
-        )
+    def __repr__(self):
+        return f"LocalOptGroup([{', '.join([str(o) for o in self.opts])}])"
 
     def tracks(self):
         t = []
@@ -2188,9 +2204,6 @@ class TopoOptimizer(NavigatorOptimizer):
                     ),
                     level=level + 1,
                 )
-
-    def __str__(self):
-        return getattr(self, "__name__", "<TopoOptimizer instance>")
 
 
 def out2in(*local_opts, **kwargs):

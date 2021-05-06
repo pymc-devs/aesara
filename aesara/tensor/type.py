@@ -7,6 +7,7 @@ from aesara import scalar as aes
 from aesara.configdefaults import config
 from aesara.graph.basic import Variable
 from aesara.graph.type import CType
+from aesara.graph.utils import MetaType
 from aesara.misc.safe_asarray import _asarray
 from aesara.utils import apply_across_args
 
@@ -67,6 +68,7 @@ class TensorType(CType):
 
     """
 
+    dtype_specs_map = dtype_specs_map
     context_name = "cpu"
     filter_checks_isfinite = False
     """
@@ -277,7 +279,7 @@ class TensorType(CType):
 
         """
         try:
-            return dtype_specs_map[self.dtype]
+            return self.dtype_specs_map[self.dtype]
         except KeyError:
             raise TypeError(
                 f"Unsupported dtype for {self.__class__.__name__}: {self.dtype}"
@@ -612,6 +614,17 @@ class TensorType(CType):
 
 
 aesara.compile.ops.expandable_types += (TensorType,)
+
+
+class DenseTypeMeta(MetaType):
+    def __instancecheck__(self, o):
+        if type(o) == TensorType or isinstance(o, DenseTypeMeta):
+            return True
+        return False
+
+
+class DenseTensorType(TensorType, metaclass=DenseTypeMeta):
+    """A `Type` for dense tensors."""
 
 
 def values_eq_approx(

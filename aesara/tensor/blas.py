@@ -167,7 +167,12 @@ from aesara.tensor.blas_headers import blas_header_text, blas_header_version
 from aesara.tensor.elemwise import DimShuffle, Elemwise
 from aesara.tensor.exceptions import NotScalarConstantError
 from aesara.tensor.math import Dot, add, mul, neg, sub
-from aesara.tensor.type import integer_dtypes, tensor, values_eq_approx_remove_inf_nan
+from aesara.tensor.type import (
+    DenseTensorType,
+    integer_dtypes,
+    tensor,
+    values_eq_approx_remove_inf_nan,
+)
 from aesara.utils import memoize
 
 
@@ -254,6 +259,7 @@ class Gemv(Op):
         A = aet.as_tensor_variable(A)
         alpha = aet.as_tensor_variable(alpha)
         beta = aet.as_tensor_variable(beta)
+
         if y.dtype != A.dtype or y.dtype != x.dtype:
             raise TypeError(
                 "Gemv requires matching dtypes", (y.dtype, A.dtype, x.dtype)
@@ -264,7 +270,13 @@ class Gemv(Op):
             raise TypeError("gemv requires vector for x", x.type)
         if y.ndim != 1:
             raise TypeError("gemv requires vector for y", y.type)
-        return Apply(self, [y, alpha, A, x, beta], [y.type()])
+
+        inputs = [y, alpha, A, x, beta]
+
+        if any(not isinstance(i.type, DenseTensorType) for i in inputs):
+            raise NotImplementedError("Only dense tensor types are supported")
+
+        return Apply(self, inputs, [y.type()])
 
     def perform(self, node, inputs, out_storage, params=None):
         y, alpha, A, x, beta = inputs
@@ -361,7 +373,12 @@ class Ger(Op):
 
         if x.dtype not in ("float32", "float64", "complex64", "complex128"):
             raise TypeError("only float and complex types supported", x.dtype)
-        return Apply(self, [A, alpha, x, y], [A.type()])
+
+        inputs = [A, alpha, x, y]
+        if any(not isinstance(i.type, DenseTensorType) for i in inputs):
+            raise NotImplementedError("Only dense tensor types are supported")
+
+        return Apply(self, inputs, [A.type()])
 
     def perform(self, node, inp, out, params=None):
         cA, calpha, cx, cy = inp
@@ -899,6 +916,10 @@ class Gemm(GemmRelated):
 
     def make_node(self, *inputs):
         inputs = list(map(aet.as_tensor_variable, inputs))
+
+        if any(not isinstance(i.type, DenseTensorType) for i in inputs):
+            raise NotImplementedError("Only dense tensor types are supported")
+
         if len(inputs) != 5:
             raise TypeError(
                 f"Wrong number of inputs for {self} (expected 5, got {len(inputs)})"
@@ -1581,6 +1602,10 @@ class Dot22(GemmRelated):
     def make_node(self, x, y):
         x = aet.as_tensor_variable(x)
         y = aet.as_tensor_variable(y)
+
+        if any(not isinstance(i.type, DenseTensorType) for i in (x, y)):
+            raise NotImplementedError("Only dense tensor types are supported")
+
         dtypes = ("float16", "float32", "float64", "complex64", "complex128")
         if x.type.ndim != 2 or x.type.dtype not in dtypes:
             raise TypeError(x)
@@ -1665,6 +1690,9 @@ def local_dot_to_dot22(fgraph, node):
     # produces a dot(dimshuffle,dimshuffle) of form 4 below
     if not isinstance(node.op, Dot):
         return
+
+    if any(not isinstance(i.type, DenseTensorType) for i in node.inputs):
+        return False
 
     x, y = node.inputs
     if y.type.dtype != x.type.dtype:
@@ -1848,6 +1876,10 @@ class Dot22Scalar(GemmRelated):
     check_input = False
 
     def make_node(self, x, y, a):
+
+        if any(not isinstance(i.type, DenseTensorType) for i in (x, y, a)):
+            raise NotImplementedError("Only dense tensor types are supported")
+
         if a.ndim != 0:
             raise TypeError(Gemm.E_scalar, a)
         if x.ndim != 2:
@@ -2066,6 +2098,9 @@ class BatchedDot(COp):
 
     def make_node(self, *inputs):
         inputs = list(map(aet.as_tensor_variable, inputs))
+
+        if any(not isinstance(i.type, DenseTensorType) for i in inputs):
+            raise NotImplementedError("Only dense tensor types are supported")
 
         if len(inputs) != 2:
             raise TypeError(f"Two arguments required, but {len(inputs)} given.")

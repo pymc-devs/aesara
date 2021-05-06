@@ -4,11 +4,12 @@ from numpy.testing import assert_equal, assert_string_equal
 
 import aesara
 import tests.unittest_tools as utt
+from aesara.tensor.basic import constant
 from aesara.tensor.elemwise import DimShuffle
 from aesara.tensor.subtensor import AdvancedSubtensor, AdvancedSubtensor1, Subtensor
 from aesara.tensor.type import TensorType, dmatrix, iscalar, ivector, matrix
 from aesara.tensor.type_other import MakeSlice
-from aesara.tensor.var import TensorConstant
+from aesara.tensor.var import DenseTensorConstant, DenseTensorVariable, TensorConstant
 
 
 @pytest.mark.parametrize(
@@ -170,3 +171,14 @@ def test__getitem__AdvancedSubtensor():
     z = x[i, None]
     op_types = [type(node.op) for node in aesara.graph.basic.io_toposort([x, i], [z])]
     assert op_types[-1] == AdvancedSubtensor
+
+
+def test_dense_types():
+
+    x = matrix()
+    assert isinstance(x, DenseTensorVariable)
+    assert not isinstance(x, DenseTensorConstant)
+
+    x = constant(1)
+    assert not isinstance(x, DenseTensorVariable)
+    assert isinstance(x, DenseTensorConstant)

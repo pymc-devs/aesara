@@ -32,6 +32,7 @@ from aesara.tensor.elemwise import (
 )
 from aesara.tensor.shape import shape
 from aesara.tensor.type import (
+    DenseTensorType,
     complex_dtypes,
     continuous_dtypes,
     discrete_dtypes,
@@ -2036,6 +2037,11 @@ def dense_dot(a, b):
 
     """
     a, b = as_tensor_variable(a), as_tensor_variable(b)
+
+    if not isinstance(a.type, DenseTensorType) or not isinstance(
+        b.type, DenseTensorType
+    ):
+        raise TypeError("The dense dot product is only supported for dense types")
 
     if a.ndim == 0 or b.ndim == 0:
         return a * b

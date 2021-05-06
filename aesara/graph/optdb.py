@@ -466,22 +466,19 @@ class LocalGroupDB(DB):
             self.__position__[name] = position
 
     def query(self, *tags, **kwtags):
-        # For the new `useless` optimizer
         opts = list(super().query(*tags, **kwtags))
         opts.sort(key=lambda obj: (self.__position__[obj.name], obj.name))
 
         ret = self.local_opt(
-            *opts, apply_all_opts=self.apply_all_opts, profile=self.profile
+            *opts,
+            apply_all_opts=self.apply_all_opts,
+            profile=self.profile,
         )
         return ret
 
 
 class TopoDB(DB):
-    """
-
-    Generate a `GlobalOptimizer` of type TopoOptimizer.
-
-    """
+    """Generate a `GlobalOptimizer` of type TopoOptimizer."""
 
     def __init__(
         self, db, order="in_to_out", ignore_newtrees=False, failure_callback=None

@@ -1279,26 +1279,17 @@ class CAReduce(COp):
 
     __props__: Union[
         Tuple[str], Tuple[str, str], Tuple[str, str, str], Tuple[str, str, str, str]
-    ] = ("scalar_op", "axis")
+    ] = ("scalar_op",)
 
-    def __init__(self, scalar_op, axis=None):
+    def __init__(self, scalar_op):
         if scalar_op.nin not in [-1, 2] or scalar_op.nout != 1:
             raise NotImplementedError(
                 "CAReduce only supports binary functions with a single " "output."
             )
 
-        self.axis = None
         self.ufunc_is_vectorized = False
         self.scalar_op = scalar_op
         self.set_ufunc(scalar_op)
-
-        if axis is not None:
-            if isinstance(axis, (int, np.integer)) or (
-                isinstance(axis, np.ndarray) and not axis.shape
-            ):
-                self.axis = (int(axis),)
-            else:
-                self.axis = tuple(axis)
 
     def set_ufunc(self, scalar_op):
         if hasattr(scalar_op, "nfunc_spec") and hasattr(np, scalar_op.nfunc_spec[0]):
@@ -1310,46 +1301,41 @@ class CAReduce(COp):
     def _output_dtype(self, input_dtype):
         return input_dtype
 
-    def make_node(self, input):
+    def make_node(self, input, axis):
         from aesara.tensor.basic import as_tensor_variable
 
         input = as_tensor_variable(input)
-        inp_dims = input.type.ndim
         inp_bdcast = input.type.broadcastable
         inp_dtype = input.type.dtype
-        copy_op = False
+        inp_dims = input.type.ndim
 
-        axis = self.axis
         if axis is None:
-            axis = list(range(len(inp_bdcast)))
-
-        axis = list(axis)
-        for i, a in enumerate(axis):
-            if a >= inp_dims or a < -inp_dims:
-                raise ValueError(
-                    f"Not enough dimensions on {input} to reduce on axis {a}"
-                )
-            if a < 0:
-                copy_op = True
-                axis[i] = a + inp_dims
-
-        # We can't call self.__class__() as there is a class that
-        # inherits from CAReduce that doesn't have the same signature
-        if copy_op:
-            op = copy(self)
-            op.set_ufunc(op.scalar_op)
-            assert len(axis) == len(self.axis)
-            op.axis = tuple(axis)
+            axis = list(range(inp_dims))
         else:
-            op = self
+            from aesara.tensor.var import TensorConstant
+
+            if isinstance(axis, TensorConstant):
+                axis = list(axis.data)
+            else:
+                axis = np.asarray(axis).tolist()
+
+            for i, a in enumerate(axis):
+                if a >= inp_dims or a < -inp_dims:
+                    raise ValueError(
+                        f"Not enough dimensions on {input} to reduce on axis {a}"
+                    )
+                if a < 0:
+                    axis[i] = a + inp_dims
 
         broadcastable = [x for i, x in enumerate(inp_bdcast) if i not in axis]
+
+        axis = as_tensor_variable(axis)
 
         output = TensorType(
             dtype=self._output_dtype(inp_dtype), broadcastable=broadcastable
         )()
 
-        return Apply(op, [input], [output])
+        return Apply(self, [input, axis], [output])
 
     def __getstate__(self):
         d = copy(self.__dict__)
@@ -1361,18 +1347,11 @@ class CAReduce(COp):
         self.set_ufunc(self.scalar_op)
 
     def __str__(self):
-        if self.axis is not None:
-            return "Reduce{{{}}}{{{}}}".format(
-                self.scalar_op,
-                ", ".join(str(x) for x in self.axis),
-            )
-        else:
-            return "Reduce{%s}" % self.scalar_op
+        return "Reduce{%s}" % self.scalar_op
 
     def perform(self, node, inp, out):
-        (input,) = inp
+        (input, axis) = inp
         (output,) = out
-        axis = self.axis
         if axis is None:
             axis = list(range(input.ndim))
 
@@ -1383,25 +1362,22 @@ class CAReduce(COp):
 
         variable = np.array(input, dtype=acc_dtype)
 
-        if axis:
-            # Reducing functions built using np.frompyfunc() do not
-            # support reduction along multiple axes. Hence loop through
-            # each, otherwise numpy's inbuilt reduction functions
-            # support reduction along multiple axes directly.
-            if self.ufunc_is_vectorized:
-                to_reduce = reversed(sorted(axis))
-                for dimension in to_reduce:
-                    variable = self.ufunc.reduce(variable, dimension, dtype=acc_dtype)
-            else:
-                variable = self.ufunc.reduce(variable, axis=tuple(axis))
-            output[0] = _asarray(variable, dtype=node.outputs[0].type.dtype)
+        # Reducing functions built using np.frompyfunc() do not
+        # support reduction along multiple axes. Hence loop through
+        # each, otherwise numpy's inbuilt reduction functions
+        # support reduction along multiple axes directly.
+        if self.ufunc_is_vectorized:
+            to_reduce = reversed(sorted(axis))
+            for dimension in to_reduce:
+                variable = self.ufunc.reduce(variable, dimension, dtype=acc_dtype)
         else:
-            # Force a copy
-            output[0] = np.array(variable, copy=True, dtype=node.outputs[0].type.dtype)
+            variable = self.ufunc.reduce(variable, axis=tuple(axis))
+        output[0] = _asarray(variable, dtype=node.outputs[0].type.dtype)
 
     def infer_shape(self, fgraph, node, shapes):
-        (ishape,) = shapes
-        axis = self.axis
+        (ishape, axis_shape) = shapes
+
+        axis = node.inputs[1].data
         if axis is None:
             return ((),)
         return (
@@ -1415,6 +1391,7 @@ class CAReduce(COp):
     def _c_all(self, node, name, inames, onames, sub):
 
         input = node.inputs[0]
+        axis = node.inputs[1]
         output = node.outputs[0]
 
         iname = inames[0]
@@ -1435,9 +1412,10 @@ class CAReduce(COp):
         else:
             adtype = odtype
 
-        axis = self.axis
         if axis is None:
             axis = list(range(len(input.type.broadcastable)))
+        else:
+            axis = axis.data
 
         if len(axis) == 0:
             # The acc_dtype is never a downcast compared to the input dtype
@@ -1446,7 +1424,7 @@ class CAReduce(COp):
             if var is input:
                 var = Elemwise(scalar_identity)(input)
             assert var.dtype == node.outputs[0].dtype
-            return var.owner.op._c_all(var.owner, name, inames, onames, sub)
+            return var.owner.op._c_all(var.owner, name, [inames[0]], onames, sub)
 
         order1 = [i for i in range(input.type.ndim) if i not in axis]
         order = order1 + list(axis)
@@ -1454,7 +1432,7 @@ class CAReduce(COp):
         nnested = len(order1)
 
         sub = dict(sub)
-        for i, (input, iname) in enumerate(zip(node.inputs, inames)):
+        for i, (input, iname) in enumerate(zip(node.inputs, [inames[0]])):
             sub[f"lv{i}"] = iname
 
         decl = ""
@@ -1671,8 +1649,10 @@ class CAReduceDtype(CAReduce):
         "acc_dtype",
     )
 
-    def __init__(self, scalar_op, axis=None, dtype=None, acc_dtype=None):
-        super().__init__(scalar_op, axis=axis)
+    def __init__(self, scalar_op, dtype=None, acc_dtype=None):
+        super().__init__(
+            scalar_op,
+        )
         self.dtype = dtype
         self.acc_dtype = acc_dtype
 
@@ -1752,7 +1732,7 @@ class CAReduceDtype(CAReduce):
                 )
             return acc_dtype
 
-    def make_node(self, input):
+    def make_node(self, input, axis):
         # We need to redefine make_node so that, if self.dtype is None,
         # we can infer what dtype should be, and create a node from an Op
         # of the appropriate dtype.
@@ -1776,17 +1756,13 @@ class CAReduceDtype(CAReduce):
 
         # TODO: Why doesn't `make_node` just take these
         # automatically-determined values as arguments?
-        return super(CAReduceDtype, op).make_node(input)
+        return super(CAReduceDtype, op).make_node(input, axis)
 
     def __str__(self):
         name = self.__class__.__name__
         if self.__class__.__name__ == "CAReduceDtype":
             name = ("ReduceDtype{%s}" % self.scalar_op,)
-        axis = ""
-        if self.axis is not None:
-            axis = ", ".join(str(x) for x in self.axis)
-            axis = f"axis=[{axis}], "
-        return f"{name}{{{axis}acc_dtype={self.acc_dtype}}}"
+        return f"{name}{{acc_dtype={self.acc_dtype}}}"
 
 
 def scalar_elemwise(*symbol, nfunc=None, nin=None, nout=None, symbolname=None):

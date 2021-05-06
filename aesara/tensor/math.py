@@ -593,7 +593,7 @@ class NonZeroCAReduce(CAReduce):
         # something that could enabled in `elemwise_cgen.make_checks`.)
         iname = inames[0]
 
-        axis = self.axis
+        axis = node.inputs[1].data
         if axis is None:
             axis = list(range(len(node.inputs[0].type.broadcastable)))
 
@@ -1454,7 +1454,10 @@ class Mean(CAReduce):
         return "float64"
 
     def perform(self, node, inp, out):
-        (input,) = inp
+        (
+            input,
+            axis,
+        ) = inp
         (output,) = out
         if self.axis is None:
             axis = None
@@ -2290,31 +2293,31 @@ class All(CAReduce):
 
     """
 
-    __props__ = ("axis",)
+    __props__ = ()
     nfunc_spec = ("all", 1, 1)
 
-    def __init__(self, axis=None):
-        super().__init__(aes.and_, axis)
+    def __init__(self):
+        super().__init__(aes.and_)
 
     def _output_dtype(self, idtype):
         return "bool"
 
     def __str__(self):
-        if self.axis is None:
-            return "All"
-        else:
-            return "All{%s}" % ", ".join(map(str, self.axis))
+        return "All"
 
-    def make_node(self, input):
+    def make_node(self, input, axis):
         input = as_tensor_variable(input)
         if input.dtype != "bool":
             input = neq(input, 0)
-        ret = super().make_node(input)
+        ret = super().make_node(input, axis)
         return ret
 
     def grad(self, inp, grads):
-        (x,) = inp
-        return [x.zeros_like(config.floatX)]
+        (
+            x,
+            axis,
+        ) = inp
+        return [x.zeros_like(config.floatX), axis.zeros_like(config.floatX)]
 
 
 class Any(CAReduce):
@@ -2326,8 +2329,8 @@ class Any(CAReduce):
     __props__ = ("axis",)
     nfunc_spec = ("any", 1, 1)
 
-    def __init__(self, axis=None):
-        super().__init__(aes.or_, axis)
+    def __init__(self):
+        super().__init__(aes.or_)
 
     def _output_dtype(self, idtype):
         return "bool"
@@ -2338,16 +2341,19 @@ class Any(CAReduce):
         else:
             return "Any{%s}" % ", ".join(map(str, self.axis))
 
-    def make_node(self, input):
+    def make_node(self, input, axis):
         input = as_tensor_variable(input)
         if input.dtype != "bool":
             input = neq(input, 0)
-        ret = super().make_node(input)
+        ret = super().make_node(input, axis)
         return ret
 
     def grad(self, inp, grads):
-        (x,) = inp
-        return [x.zeros_like(config.floatX)]
+        (
+            x,
+            axis,
+        ) = inp
+        return [x.zeros_like(config.floatX), axis.zeros_like(config.floatX)]
 
 
 class Sum(CAReduceDtype):
@@ -2386,44 +2392,43 @@ class Sum(CAReduceDtype):
 
     """
 
-    __props__ = ("axis", "dtype", "acc_dtype")
+    __props__ = ("dtype", "acc_dtype")
     nfunc_spec = ("sum", 1, 1)
 
-    def __init__(self, axis=None, dtype=None, acc_dtype=None):
-        super().__init__(aes.add, axis=axis, dtype=dtype, acc_dtype=acc_dtype)
+    def __init__(self, dtype=None, acc_dtype=None):
+        super().__init__(aes.add, dtype=dtype, acc_dtype=acc_dtype)
 
     def __str__(self):
         name = self.__class__.__name__
-        axis = ""
-        if self.axis is not None:
-            axis = ", ".join(str(x) for x in self.axis)
-            axis = f"axis=[{axis}], "
-        return f"{name}{{{axis}acc_dtype={self.acc_dtype}}}"
+        return f"{name}{{acc_dtype={self.acc_dtype}}}"
 
     def L_op(self, inp, out, grads):
-        (x,) = inp
+        (x, axis) = inp
 
         if out[0].dtype not in continuous_dtypes:
-            return [x.zeros_like(dtype=config.floatX)]
+            return [
+                x.zeros_like(dtype=config.floatX),
+                axis.zeros_like(dtype=config.floatX),
+            ]
 
         (gz,) = grads
         gz = as_tensor_variable(gz)
-        axis = self.axis
+        axis = as_tensor_variable(axis.data, dtype=config.floatX)
         if axis is None:
             axis = list(range(x.type.ndim))
-        if axis == ():
-            return (gz,)
+        if axis.data == ():
+            return (gz, axis)
         new_dims = []
         i = 0
         for j, _ in enumerate(x.type.broadcastable):
-            if j in axis:
+            if j in axis.data:
                 new_dims.append("x")
             else:
                 new_dims.append(i)
                 i += 1
         ds_op = DimShuffle(gz.type.broadcastable, new_dims)
         gx = Elemwise(aes.second)(x, ds_op(gz))
-        return [gx]
+        return [gx, axis]
 
     def R_op(self, inputs, eval_points):
         # There is just one element in inputs and eval_points, the axis are
@@ -2453,7 +2458,7 @@ def sum(input, axis=None, dtype=None, keepdims=False, acc_dtype=None):
 
     """
 
-    out = Sum(axis=axis, dtype=dtype, acc_dtype=acc_dtype)(input)
+    out = Sum(dtype=dtype, acc_dtype=acc_dtype)(input, axis)
 
     if keepdims:
         out = makeKeepDims(input, out, axis)
@@ -2678,10 +2683,10 @@ mul_without_zeros = MulWithoutZeros(aes.upcast_out, name="mul_without_zeros")
 
 class ProdWithoutZeros(CAReduceDtype):
 
-    __props__ = ("axis", "dtype", "acc_dtype")
+    __props__ = ("dtype", "acc_dtype")
 
-    def __init__(self, axis=None, dtype=None, acc_dtype=None):
-        super().__init__(mul_without_zeros, axis=axis, dtype=dtype, acc_dtype=acc_dtype)
+    def __init__(self, dtype=None, acc_dtype=None):
+        super().__init__(mul_without_zeros, dtype=dtype, acc_dtype=acc_dtype)
 
     def grad(self, inp, grads):
         from aesara.gradient import grad_not_implemented
@@ -2699,7 +2704,7 @@ class ProdWithoutZeros(CAReduceDtype):
 
 
 def any(x, axis=None, keepdims=False):
-    out = Any(axis)(x)
+    out = Any()(x, axis)
 
     if keepdims:
         out = makeKeepDims(x, out, axis)
@@ -2707,7 +2712,7 @@ def any(x, axis=None, keepdims=False):
 
 
 def all(x, axis=None, keepdims=False):
-    out = All(axis)(x)
+    out = All()(x, axis)
 
     if keepdims:
         out = makeKeepDims(x, out, axis)

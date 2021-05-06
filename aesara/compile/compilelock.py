@@ -21,6 +21,10 @@ __all__ = [
 class ThreadFileLocks(threading.local):
     def __init__(self):
         self._locks = {}
+        # For each lock we also store the pid of the process
+        # that created the lock, so we can create a new lock
+        # after a fork
+        self._pids = {}
 
 
 local_mem = ThreadFileLocks()
@@ -34,14 +38,12 @@ def force_unlock(lock_dir: os.PathLike):
     lock_dir : os.PathLike
         Path to a directory that was locked with `lock_ctx`.
     """
-
-    fl = filelock.FileLock(os.path.join(lock_dir, ".lock"))
+    lockfile = os.path.join(lock_dir, "lock")
+    fl = filelock.FileLock(lockfile)
     fl.release(force=True)
 
-    dir_key = f"{lock_dir}-{os.getpid()}"
-
-    if dir_key in local_mem._locks:
-        del local_mem._locks[dir_key]
+    if lockfile in local_mem._locks:
+        del local_mem._locks[lockfile]
 
 
 @contextmanager
@@ -64,18 +66,14 @@ def lock_ctx(lock_dir: os.PathLike = None, *, timeout: Optional[float] = None):
         timeout = config.compile__timeout
 
     # locks are kept in a dictionary to account for changing compiledirs
-    dir_key = f"{lock_dir}-{os.getpid()}"
+    lockfile = os.path.join(lock_dir, "lock")
 
-    if dir_key not in local_mem._locks:
-        local_mem._locks[dir_key] = True
-        fl = filelock.FileLock(os.path.join(lock_dir, ".lock"))
-        fl.acquire(timeout=timeout)
-        try:
-            yield
-        finally:
-            if fl.is_locked:
-                fl.release()
-            if dir_key in local_mem._locks:
-                del local_mem._locks[dir_key]
+    if lockfile in local_mem._locks and local_mem._pids[lockfile] == os.getpid():
+        lock = local_mem._locks[lockfile]
     else:
+        lock = filelock.FileLock(lockfile, timeout=timeout)
+        local_mem._locks[lockfile] = lock
+        local_mem._pids[lockfile] = os.getpid()
+
+    with lock.acquire(timeout=timeout):
         yield

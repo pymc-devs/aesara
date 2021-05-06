@@ -1546,7 +1546,8 @@ class FunctionMaker:
             #    too much execution time during testing as we compile
             #    much more functions then the number of compile c
             #    module.
-            aesara.link.c.basic.get_module_cache().refresh()
+            with aesara.link.c.basic.get_module_cache() as cache:
+                cache.refresh()
         # Handle the case where inputs and/or outputs is a single
         # Variable (not in a list)
         unpack_single = False

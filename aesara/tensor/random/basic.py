@@ -147,7 +147,7 @@ class GumbelRV(RandomVariable):
         loc: Union[np.ndarray, float],
         scale: Union[np.ndarray, float] = 1.0,
         size: Optional[Union[List[int], int]] = None,
-        **kwargs
+        **kwargs,
     ) -> RandomVariable:
         return super().__call__(loc, scale, size=size, **kwargs)
 

@@ -59,33 +59,33 @@ def main():
         if sys.argv[1] == "clear":
             # We skip the refresh on module cache creation because the refresh will
             # be done when calling clear afterwards.
-            cache = get_module_cache(init_args=dict(do_refresh=False))
-            cache.clear(
-                unversioned_min_age=-1, clear_base_files=True, delete_if_problem=True
-            )
-
-            # Print a warning if some cached modules were not removed, so that the
-            # user knows he should manually delete them, or call
-            # aesara-cache purge, # to properly clear the cache.
-            items = [
-                item
-                for item in sorted(os.listdir(cache.dirname))
-                if item.startswith("tmp")
-            ]
-            if items:
-                _logger.warning(
-                    "There remain elements in the cache dir that you may "
-                    "need to erase manually. The cache dir is:\n  %s\n"
-                    'You can also call "aesara-cache purge" to '
-                    "remove everything from that directory." % config.compiledir
+            with get_module_cache(init_args=dict(do_refresh=False)) as cache:
+                cache.clear(
+                    unversioned_min_age=-1, clear_base_files=True, delete_if_problem=True
                 )
-                _logger.debug(f"Remaining elements ({len(items)}): {', '.join(items)}")
+
+                # Print a warning if some cached modules were not removed, so that the
+                # user knows he should manually delete them, or call
+                # aesara-cache purge, # to properly clear the cache.
+                items = [
+                    item
+                    for item in sorted(os.listdir(cache.dirname))
+                    if item.startswith("tmp")
+                ]
+                if items:
+                    _logger.warning(
+                        "There remain elements in the cache dir that you may "
+                        "need to erase manually. The cache dir is:\n  %s\n"
+                        'You can also call "aesara-cache purge" to '
+                        "remove everything from that directory." % config.compiledir
+                    )
+                    _logger.debug(f"Remaining elements ({len(items)}): {', '.join(items)}")
         elif sys.argv[1] == "list":
             aesara.compile.compiledir.print_compiledir_content()
         elif sys.argv[1] == "cleanup":
             aesara.compile.compiledir.cleanup()
-            cache = get_module_cache(init_args=dict(do_refresh=False))
-            cache.clear_old()
+            with get_module_cache(init_args=dict(do_refresh=False)) as cache:
+                cache.clear_old()
         elif sys.argv[1] == "unlock":
             aesara.compile.compilelock.force_unlock(config.compiledir)
             print("Lock successfully removed!")

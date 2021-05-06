@@ -1,5 +1,4 @@
 import multiprocessing
-import os
 import sys
 import tempfile
 import threading
@@ -14,7 +13,7 @@ from aesara.compile.compilelock import force_unlock, local_mem, lock_ctx
 def test_compilelock_force_unlock():
     with tempfile.TemporaryDirectory() as dir_name:
         with lock_ctx(dir_name):
-            dir_key = f"{dir_name}-{os.getpid()}"
+            dir_key = f"{dir_name}/lock"
 
             assert dir_key in local_mem._locks
             assert local_mem._locks[dir_key]
@@ -56,7 +55,7 @@ def run_locking_test(ctx):
 
         # create a lock on the test directory
         with lock_ctx(dir_name):
-            dir_key = f"{dir_name}-{os.getpid()}"
+            dir_key = f"{dir_name}/lock"
             assert dir_key in local_mem._locks
             assert local_mem._locks[dir_key]
 

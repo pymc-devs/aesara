@@ -3,9 +3,8 @@ import numpy as np
 from aesara.compile.function.pfunc import pfunc
 from aesara.compile.sharedvalue import shared
 from aesara.gradient import grad
-from aesara.tensor.math import dot
+from aesara.tensor.math import dot, sigmoid
 from aesara.tensor.math import sum as aet_sum
-from aesara.tensor.nnet import sigmoid
 from aesara.tensor.type import dvector
 
 

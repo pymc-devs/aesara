@@ -19,7 +19,7 @@ class Mlp:
         x = dmatrix("x")
         wh = aesara.shared(self.rng.normal(0, 1, (nfeatures, nhiddens)), borrow=True)
         bh = aesara.shared(np.zeros(nhiddens), borrow=True)
-        h = aesara.tensor.nnet.sigmoid(aet.dot(x, wh) + bh)
+        h = aesara.tensor.sigmoid(aet.dot(x, wh) + bh)
 
         wy = aesara.shared(self.rng.normal(0, 1, (nhiddens, noutputs)))
         by = aesara.shared(np.zeros(noutputs), borrow=True)
@@ -45,7 +45,7 @@ class OfgNested:
 class Ofg:
     def __init__(self):
         x, y, z = scalars("xyz")
-        e = aesara.tensor.nnet.sigmoid((x + y + z) ** 2)
+        e = aesara.tensor.sigmoid((x + y + z) ** 2)
         op = aesara.compile.builders.OpFromGraph([x, y, z], [e])
         e2 = op(x, y, z) + op(z, y, x)
 
@@ -56,7 +56,7 @@ class Ofg:
 class OfgSimple:
     def __init__(self):
         x, y, z = scalars("xyz")
-        e = aesara.tensor.nnet.sigmoid((x + y + z) ** 2)
+        e = aesara.tensor.sigmoid((x + y + z) ** 2)
         op = aesara.compile.builders.OpFromGraph([x, y, z], [e])
         e2 = op(x, y, z)
 

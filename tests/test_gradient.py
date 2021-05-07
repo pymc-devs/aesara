@@ -33,7 +33,7 @@ from aesara.graph.basic import Apply, graph_inputs
 from aesara.graph.null_type import NullType
 from aesara.graph.op import Op
 from aesara.sandbox.rng_mrg import MRG_RandomStream
-from aesara.tensor.math import add, dot, exp, sqr
+from aesara.tensor.math import add, dot, exp, sigmoid, sqr
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tanh
 from aesara.tensor.type import (
@@ -466,7 +466,7 @@ class TestGrad:
 
         def make_grad_func(X):
             Z = dot(X, W) + b
-            H = aesara.tensor.nnet.sigmoid(Z)
+            H = sigmoid(Z)
             cost = H.sum()
             g = grad(cost, X)
             return aesara.function([X, W, b], g, on_unused_input="ignore")

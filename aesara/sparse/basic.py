@@ -33,6 +33,7 @@ from aesara.tensor.math import (
     rad2deg,
     round_half_to_even,
     sgn,
+    sigmoid,
     sin,
     sinh,
     sqr,
@@ -3189,7 +3190,7 @@ def structured_monoid(tensor_op):
     return decorator
 
 
-@structured_monoid(aesara.tensor.nnet.sigmoid)
+@structured_monoid(sigmoid)
 def structured_sigmoid(x):
     """
     Structured elemwise sigmoid.

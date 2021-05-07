@@ -82,11 +82,10 @@ from aesara.tensor.math import (
 )
 from aesara.tensor.math import pow as aet_pow
 from aesara.tensor.math import round as aet_round
-from aesara.tensor.math import sin, sinh, sqr, sqrt, sub
+from aesara.tensor.math import sin, sinh, softplus, sqr, sqrt, sub
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tan, tanh, true_div, xor
 from aesara.tensor.math_opt import local_lift_transpose_through_dot
-from aesara.tensor.nnet.sigm import softplus
 from aesara.tensor.shape import Reshape, Shape_i, SpecifyShape, reshape, specify_shape
 from aesara.tensor.subtensor import (
     AdvancedIncSubtensor,

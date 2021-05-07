@@ -13,6 +13,7 @@ from aesara.configdefaults import config
 from aesara.graph.fg import FunctionGraph
 from aesara.ifelse import IfElse
 from aesara.link.utils import fgraph_to_python
+from aesara.scalar import Softplus
 from aesara.scalar.basic import Cast, Clip, Composite, Identity, ScalarOp, Second
 from aesara.scan.op import Scan
 from aesara.scan.utils import scan_args as ScanArgs
@@ -53,7 +54,6 @@ from aesara.tensor.nlinalg import (
     QRIncomplete,
 )
 from aesara.tensor.nnet.basic import LogSoftmax, Softmax
-from aesara.tensor.nnet.sigm import ScalarSoftplus
 from aesara.tensor.random.op import RandomVariable
 from aesara.tensor.shape import Reshape, Shape, Shape_i, SpecifyShape
 from aesara.tensor.slinalg import Cholesky, Solve
@@ -191,12 +191,16 @@ def jax_funcify_LogSoftmax(op, **kwargs):
     return log_softmax
 
 
-@jax_funcify.register(ScalarSoftplus)
-def jax_funcify_ScalarSoftplus(op, **kwargs):
-    def scalarsoftplus(x):
-        return jnp.where(x < -30.0, 0.0, jnp.where(x > 30.0, x, jnp.log1p(jnp.exp(x))))
+@jax_funcify.register(Softplus)
+def jax_funcify_Softplus(op, **kwargs):
+    def softplus(x):
+        # This expression is numerically equivalent to the Aesara one
+        # It just contains one "speed" optimization less than the Aesara counterpart
+        return jnp.where(
+            x < -37.0, jnp.exp(x), jnp.where(x > 33.3, x, jnp.log1p(jnp.exp(x)))
+        )
 
-    return scalarsoftplus
+    return softplus
 
 
 @jax_funcify.register(Second)

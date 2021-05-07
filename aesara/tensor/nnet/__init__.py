@@ -43,11 +43,4 @@ from aesara.tensor.nnet.basic import (
     softsign,
 )
 from aesara.tensor.nnet.batchnorm import batch_normalization
-from aesara.tensor.nnet.sigm import (
-    hard_sigmoid,
-    scalar_sigmoid,
-    sigmoid,
-    sigmoid_inplace,
-    softplus,
-    ultra_fast_sigmoid,
-)
+from aesara.tensor.nnet.sigm import hard_sigmoid, ultra_fast_sigmoid

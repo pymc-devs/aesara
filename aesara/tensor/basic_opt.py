@@ -4069,7 +4069,7 @@ def local_flatten_lift(fgraph, node):
     Flatten(UnaryElemwise(x)) -> UnaryElemwise(Flatten(x))
 
     This optimization is needed by optimization
-    nnet/sigm.py:log1msigm_to_softplus to get applied when there is a flatten.
+    log1msigm_to_softplus to get applied when there is a flatten.
 
     """
     if (
@@ -4295,7 +4295,7 @@ def local_reshape_lift(fgraph, node):
     Reshape(UnaryElemwise(x)) -> UnaryElemwise(Reshape(x))
 
     This optimization is needed by optimization
-    nnet/sigm.py:log1msigm_to_softplus to get applied when there is a reshape.
+    log1msigm_to_softplus to get applied when there is a reshape.
 
     """
     if (

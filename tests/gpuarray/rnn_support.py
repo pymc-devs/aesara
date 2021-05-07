@@ -1,8 +1,7 @@
 import numpy as np
 
 import aesara
-from aesara.tensor import nnet
-from aesara.tensor.math import dot, tanh
+from aesara.tensor.math import dot, sigmoid, tanh
 
 
 class Model:
@@ -126,10 +125,10 @@ class GRU(Layer):
         """step through processed input to create output"""
 
         def step(inp, s_prev):
-            i_t = nnet.sigmoid(
+            i_t = sigmoid(
                 dot(inp, self.W_i) + dot(s_prev, self.R_i) + self.b_wi + self.b_ru
             )
-            r_t = nnet.sigmoid(
+            r_t = sigmoid(
                 dot(inp, self.W_r) + dot(s_prev, self.R_r) + self.b_wr + self.b_rr
             )
 
@@ -230,13 +229,13 @@ class LSTM(Layer):
         """step through processed input to create output"""
 
         def step(x_t, h_tm1, c_tm1):
-            i_t = nnet.sigmoid(
+            i_t = sigmoid(
                 dot(x_t, self.W_i) + dot(h_tm1, self.R_i) + self.b_wi + self.b_ri
             )
-            f_t = nnet.sigmoid(
+            f_t = sigmoid(
                 dot(x_t, self.W_f) + dot(h_tm1, self.R_f) + self.b_wf + self.b_rf
             )
-            o_t = nnet.sigmoid(
+            o_t = sigmoid(
                 dot(x_t, self.W_o) + dot(h_tm1, self.R_o) + self.b_ro + self.b_wo
             )
 

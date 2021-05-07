@@ -269,7 +269,7 @@ def test_create_numba_signature(v, expected, force_scalar):
         (
             [aet.vector()],
             [np.random.randn(100).astype(config.floatX)],
-            lambda x: aet.nnet.sigmoid(x),
+            lambda x: aet.sigmoid(x),
         ),
         (
             [aet.vector() for i in range(4)],

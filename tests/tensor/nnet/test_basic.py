@@ -9,7 +9,17 @@ from aesara.gradient import grad
 from aesara.graph.fg import FunctionGraph
 from aesara.graph.opt import check_stack_trace
 from aesara.tensor.elemwise import CAReduce, DimShuffle, Elemwise
-from aesara.tensor.math import Argmax, add, argmax, dot, exp, log, max_and_argmax, mean
+from aesara.tensor.math import (
+    Argmax,
+    add,
+    argmax,
+    dot,
+    exp,
+    log,
+    max_and_argmax,
+    mean,
+    sigmoid,
+)
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tanh, true_div
 from aesara.tensor.nnet.basic import (
@@ -45,7 +55,6 @@ from aesara.tensor.nnet.basic import (
     softmax_with_bias,
     softsign,
 )
-from aesara.tensor.nnet.sigm import sigmoid
 from aesara.tensor.shape import shape_padleft, specify_shape
 from aesara.tensor.subtensor import AdvancedSubtensor
 from aesara.tensor.type import (

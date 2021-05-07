@@ -61,8 +61,7 @@ from aesara.tensor.blas import (
     res_is_a,
 )
 from aesara.tensor.elemwise import DimShuffle
-from aesara.tensor.math import Dot, dot, mean, mul, neg, outer, sqrt
-from aesara.tensor.nnet import sigmoid
+from aesara.tensor.math import Dot, dot, mean, mul, neg, outer, sigmoid, sqrt
 from aesara.tensor.type import (
     cmatrix,
     col,

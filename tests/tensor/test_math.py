@@ -93,6 +93,7 @@ from aesara.tensor.math import (
     round_half_away_from_zero,
     round_half_to_even,
     sgn,
+    sigmoid,
     sin,
     sinh,
     smallest,
@@ -102,7 +103,6 @@ from aesara.tensor.math import (
 )
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tan, tanh, tensordot, true_div, trunc, var
-from aesara.tensor.nnet import sigmoid
 from aesara.tensor.type import (
     TensorType,
     complex_dtypes,

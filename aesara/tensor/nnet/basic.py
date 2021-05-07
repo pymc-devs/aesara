@@ -53,11 +53,12 @@ from aesara.tensor.math import (
     mul,
     neg,
     or_,
+    sigmoid,
+    softplus,
 )
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tanh, tensordot, true_div
 from aesara.tensor.nnet.blocksparse import sparse_block_dot
-from aesara.tensor.nnet.sigm import sigmoid, softplus
 from aesara.tensor.shape import shape, shape_padleft
 from aesara.tensor.subtensor import AdvancedIncSubtensor, AdvancedSubtensor, Subtensor
 from aesara.tensor.type import (

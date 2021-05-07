@@ -17,13 +17,17 @@ from tests.tensor.utils import (
     _good_broadcast_unary_normal_float,
     _good_broadcast_unary_normal_float_no_complex,
     _good_broadcast_unary_normal_float_no_complex_small_neg_range,
+    _good_broadcast_unary_normal_no_complex,
     _grad_broadcast_unary_0_2_no_complex,
     _grad_broadcast_unary_abs1_no_complex,
     _grad_broadcast_unary_normal,
     _grad_broadcast_unary_normal_small_neg_range,
+    check_floatX,
+    copymod,
     makeBroadcastTester,
     rand_ranged,
     randint_ranged,
+    upcast_int8_nfunc,
 )
 
 
@@ -72,6 +76,7 @@ if imported_scipy_special:
     expected_i1 = scipy.special.i1
     expected_iv = scipy.special.iv
     expected_erfcx = scipy.special.erfcx
+    expected_sigmoid = scipy.special.expit
     skip_scipy = False
 else:
     expected_erf = []
@@ -94,6 +99,11 @@ else:
     expected_i0 = []
     expected_i1 = []
     expected_iv = []
+    expected_sigmoid = (
+        upcast_int8_nfunc(
+            lambda inputs: check_floatX(inputs, np.log1p(np.exp(inputs)))
+        ),
+    )
     skip_scipy = "scipy is not present"
 
 TestErfBroadcast = makeBroadcastTester(
@@ -563,3 +573,75 @@ def test_verify_iv_grad():
         return aet.iv(v_val, x)
 
     utt.verify_grad(fixed_first_input_iv, [x_val])
+
+
+TestSigmoidBroadcast = makeBroadcastTester(
+    op=aet.sigmoid,
+    expected=expected_sigmoid,
+    good=_good_broadcast_unary_normal_no_complex,
+    eps=1e-8,
+)
+
+TestSigmoidInplaceBroadcast = makeBroadcastTester(
+    op=inplace.sigmoid_inplace,
+    expected=expected_sigmoid,
+    good=_good_broadcast_unary_normal_no_complex,
+    grad=_grad_broadcast_unary_normal,
+    eps=1e-8,
+    inplace=True,
+)
+
+
+class TestSigmoid:
+    def setup_method(self):
+        utt.seed_rng()
+
+    def test_elemwise(self):
+        utt.verify_grad(aet.sigmoid, [np.random.rand(3, 4)])
+
+
+_good_broadcast_unary_softplus = dict(
+    copymod(
+        _good_broadcast_unary_normal_no_complex,
+        without=["uint8", "uint16", "big_scalar"],
+    ),  # numpy function overflows with uint16.
+    uint8=[
+        np.arange(0, 89, dtype="uint8")
+    ],  # the range is different in new added uint8.
+    int8=[np.arange(-127, 89, dtype="int8")],
+)
+
+expected_sofplus = upcast_int8_nfunc(
+    lambda inputs: check_floatX(inputs, np.log1p(np.exp(inputs)))
+)
+
+TestSoftplusBroadcast = makeBroadcastTester(
+    op=aet.softplus,
+    expected=expected_sofplus,
+    good=_good_broadcast_unary_softplus,
+    eps=1e-8,
+)
+
+TestSoftplusInplaceBroadcast = makeBroadcastTester(
+    op=inplace.softplus_inplace,
+    expected=expected_sofplus,
+    good=_good_broadcast_unary_softplus,
+    grad=_grad_broadcast_unary_normal,
+    eps=1e-8,
+    inplace=True,
+)
+
+
+class TestSoftplus:
+    def setup_method(self):
+        utt.seed_rng()
+
+    def test_elemwise(self):
+        utt.verify_grad(aet.softplus, [np.random.rand(3, 4)])
+
+    def test_accuracy(self):
+        # Test all aproximations are working (cutoff points are -37, 18, 33.3)
+        x_test = np.array([-40.0, -17.5, 17.5, 18.5, 40.0])
+        y_th = aet.softplus(x_test).eval()
+        y_np = np.log1p(np.exp(x_test))
+        np.testing.assert_allclose(y_th, y_np, rtol=10e-10)

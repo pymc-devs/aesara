@@ -52,10 +52,10 @@ from aesara.tensor.blas import Dot22
 from aesara.tensor.elemwise import Elemwise
 from aesara.tensor.math import Dot
 from aesara.tensor.math import all as aet_all
-from aesara.tensor.math import dot, mean
+from aesara.tensor.math import dot, mean, sigmoid
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tanh
-from aesara.tensor.nnet import categorical_crossentropy, sigmoid, softmax_graph
+from aesara.tensor.nnet import categorical_crossentropy, softmax_graph
 from aesara.tensor.random.utils import RandomStream
 from aesara.tensor.shape import Shape_i, reshape, shape, specify_shape
 from aesara.tensor.sharedvar import SharedVariable

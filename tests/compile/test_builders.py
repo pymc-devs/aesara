@@ -12,8 +12,8 @@ from aesara.gradient import DisconnectedType, Rop, grad
 from aesara.graph.null_type import NullType
 from aesara.tensor.math import dot, exp
 from aesara.tensor.math import round as aet_round
+from aesara.tensor.math import sigmoid
 from aesara.tensor.math import sum as aet_sum
-from aesara.tensor.nnet import sigmoid
 from aesara.tensor.random.utils import RandomStream
 from aesara.tensor.type import TensorType, matrices, matrix, scalar, vector, vectors
 from tests import unittest_tools

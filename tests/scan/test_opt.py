@@ -5,9 +5,8 @@ import aesara.tensor.basic as aet
 from aesara.configdefaults import config
 from aesara.gradient import Rop, grad, jacobian
 from aesara.scan.op import Scan
-from aesara.tensor import nnet
 from aesara.tensor.elemwise import Elemwise
-from aesara.tensor.math import Dot, dot
+from aesara.tensor.math import Dot, dot, sigmoid
 from aesara.tensor.math import sum as aet_sum
 from aesara.tensor.math import tanh
 from aesara.tensor.type import matrix, tensor3, vector
@@ -322,8 +321,8 @@ class TestPushOutSumOfDot:
         ):
             pre_r = ri + h.dot(U)
             pre_z = zi + h.dot(V)
-            r = nnet.sigmoid(pre_r)
-            z = nnet.sigmoid(pre_z)
+            r = sigmoid(pre_r)
+            z = sigmoid(pre_z)
 
             after_r = r * h
             pre_h = x + after_r.dot(W)

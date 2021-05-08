@@ -12,6 +12,7 @@ from types import FunctionType
 from typing import Any, Callable, Dict, Iterable, List, NoReturn, Optional, Tuple, Union
 
 import numpy as np
+from typing_extensions import Protocol
 
 from aesara import utils
 from aesara.configdefaults import config
@@ -131,36 +132,49 @@ def map_storage(
     return input_storage, output_storage, storage_map
 
 
+class Streamline(Protocol):
+    allow_gc: Optional[bool]
+    storage_map: Optional[Dict]
+
+
+def streamline_decorator(func: Any) -> Streamline:
+    return func
+
+
+@streamline_decorator
 def streamline(
     fgraph: FunctionGraph,
-    thunks,
-    order,
-    post_thunk_old_storage=None,
-    no_recycling=None,
-    nice_errors=True,
+    thunks: List,
+    order: List,
+    post_thunk_old_storage: Optional[List] = None,
+    no_recycling: Optional[List] = None,
+    nice_errors: bool = True,
 ) -> Callable[[], NoReturn]:
     """
     WRITEME
 
     Parameters
     ----------
-    fgraph
-    thunks
+    fgraph : FunctionGraph
+    thunks : list
         The list of program instructions.
-    order
+    order : list
         The list of apply instances that gave rise to the thunks
         (same order as thunks).
-    post_thunk_old_storage
+    post_thunk_old_storage : list or None
         A list (corresponding to thunks, order) whose elements are lists of
         storage cells, that should be cleared after running thecorresponding
         thunk. A value of None disables this functionality.
-    no_recycling
+    no_recycling : list or None
         Storage elements that cannot be 'recycled' by repeatedly executing the
         program. These storage elements are cleared before re-running.
-    nice_errors
+    nice_errors : bool
         Run in such a way that the double-traceback is printed. This costs a
         bit of performance in the inner python loop.
 
+    Returns
+    -------
+    f : callable
     """
     if no_recycling is None:
         no_recycling = []
@@ -216,7 +230,7 @@ def streamline(
     return f
 
 
-def gc_helper(node_list: List[Apply]):
+def gc_helper(node_list: List[Apply]) -> Tuple:
     """
     Return the set of Variable instances which are computed by node_list.
     Parameters
@@ -554,7 +568,7 @@ def __log_thunk_trace(value, handler: io.TextIOWrapper):
             )
 
 
-def register_thunk_trace_excepthook(handler: io.TextIOWrapper = sys.stdout):
+def register_thunk_trace_excepthook(handler: io.TextIOWrapper = sys.stdout) -> NoReturn:
     """Adds the __log_thunk_trace except hook to the collection in aesara.utils.
 
     Parameters

@@ -1,7 +1,8 @@
 import warnings
-from typing import Dict
+from typing import Any, Dict
 
 import numpy as np
+from typing_extensions import Protocol
 
 import aesara
 from aesara.gradient import DisconnectedType
@@ -248,6 +249,15 @@ class Shape_i(COp):
         ]
 
 
+class Shape_i_decorator(Protocol):
+    cache: Dict
+
+
+def shape_i_decorator(func: Any) -> Shape_i_decorator:
+    return func
+
+
+@shape_i_decorator
 def shape_i(var, i, fgraph=None):
     """
     Equivalent of var.shape[i], but apply if possible the shape feature

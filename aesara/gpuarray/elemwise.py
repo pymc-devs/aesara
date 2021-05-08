@@ -1,7 +1,9 @@
 import copy
 from io import StringIO
+from typing import Any, Dict
 
 import numpy as np
+from typing_extensions import Protocol
 
 from aesara import scalar as aes
 from aesara.graph.basic import Apply
@@ -2997,7 +2999,16 @@ class GpuErfcinv(Erfcinv):
 gpu_erfcinv = GpuErfcinv(upgrade_to_float_no_complex, name="gpu_erfcinv")
 
 
+class Gpu_ca_reduce(Protocol):
+    cache: Dict
+
+
+def gpu_ca_reduce_decorator(func: Any) -> Gpu_ca_reduce:
+    return func
+
+
 # Caching GpuCAReduceCuda
+@gpu_ca_reduce_decorator
 def gpu_ca_reduce_cuda(
     scalar_op,
     axis=None,

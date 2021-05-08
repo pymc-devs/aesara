@@ -45,15 +45,15 @@ def force_unlock(lock_dir: os.PathLike):
 
 
 @contextmanager
-def lock_ctx(lock_dir: os.PathLike = None, *, timeout: Optional[float] = None):
+def lock_ctx(lock_dir: Optional[os.PathLike] = None, *, timeout: Optional[float] = -1):
     """Context manager that wraps around FileLock and SoftFileLock from filelock package.
 
     Parameters
     ----------
-    lock_dir : str
+    lock_dir : str or None
         A directory for which to acquire the lock.
         Defaults to the config.compiledir.
-    timeout : float
+    timeout : float or None
         Timeout in seconds for waiting in lock acquisition.
         Defaults to config.compile__timeout.
     """

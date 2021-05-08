@@ -2,7 +2,7 @@
 import time
 import warnings
 from collections import OrderedDict
-from typing import Any, Dict, List, NoReturn, Optional, Tuple, Union
+from typing import Any, Dict, List, NoReturn, Optional, Set, Tuple, Union
 
 import aesara
 from aesara.configdefaults import config
@@ -128,31 +128,31 @@ class FunctionGraph(MetaObject):
             inputs = [memo[i] for i in inputs]
 
         self.execute_callbacks_time = 0
-        self.execute_callbacks_times = {}
+        self.execute_callbacks_times: Dict = {}
 
         if features is None:
             features = []
 
-        self._features = []
+        self._features: List = []
 
         # All apply nodes in the subgraph defined by inputs and
         # outputs are cached in this field
-        self.apply_nodes = set()
+        self.apply_nodes: Set = set()
 
         # Ditto for variable nodes.
         # It must contain all fgraph.inputs and all apply_nodes
         # outputs even if they aren't used in the graph.
-        self.variables = set()
+        self.variables: Set = set()
 
         self.outputs = list(outputs)
-        self.clients = {}
+        self.clients: Dict = {}
 
         for f in features:
             self.attach_feature(f)
 
         self.attach_feature(ReplaceValidate())
 
-        self.inputs = []
+        self.inputs: List = []
         for in_var in inputs:
             if in_var.owner is not None:
                 raise ValueError(
@@ -268,6 +268,7 @@ class FunctionGraph(MetaObject):
         client_to_remove : pair of (Apply, int)
             A `(node, i)` pair such that `node.inputs[i]` will no longer be
             `var` in this `FunctionGraph`.
+        reason : str or None
 
         """
 
@@ -369,7 +370,7 @@ class FunctionGraph(MetaObject):
         check : bool
             Check that the inputs for the imported nodes are also present in
             the `FunctionGraph`.
-        reason : str
+        reason : str or None
             The name of the optimization or operation in progress.
         import_missing : bool
             Add missing inputs instead of raising an exception.
@@ -501,7 +502,7 @@ class FunctionGraph(MetaObject):
             The variable to replace `var`.
         reason : str
             The name of the optimization or operation in progress.
-        verbose : bool
+        verbose : bool or None
             Print `reason`, `var`, and `new_var`.
         import_missing : bool
             Import missing variables.
@@ -669,7 +670,8 @@ class FunctionGraph(MetaObject):
         return order
 
     def orderings(self) -> Dict[Apply, List[Apply]]:
-        """Return `dict` `d` s.t. `d[node]` is a list of nodes that must be evaluated before `node` itself can be evaluated.
+        """Return `dict` `d` s.t. `d[node]` is a list of nodes that must
+        be evaluated before `node` itself can be evaluated.
 
         This is used primarily by the destroy_handler feature to ensure that
         the clients of any destroyed inputs have already computed their

@@ -3,9 +3,10 @@ import os
 import sys
 import warnings
 from functools import reduce
-from typing import Optional
+from typing import Any, Callable, Optional, TypeVar
 
 import numpy as np
+from typing_extensions import Protocol
 
 import aesara
 import aesara.gpuarray.pathparse
@@ -82,6 +83,15 @@ def _load_lib(name):
         return None
 
 
+class Dnn_lib(Protocol):
+    handle: Optional[str]
+
+
+def _dnn_lib_decorator(func: Any) -> Dnn_lib:
+    return func
+
+
+@_dnn_lib_decorator
 def _dnn_lib():
     if _dnn_lib.handle is None:
         import ctypes.util
@@ -209,6 +219,20 @@ def _dnn_check_version():
     return True, None
 
 
+F = TypeVar("F", bound=Callable[..., object])
+
+
+class Dnn_present(Protocol[F]):
+    avail: Optional[bool]
+    msg: Optional[str]
+    __call__: F
+
+
+def dnn_present_decorator(func: Any) -> Dnn_present:
+    return func
+
+
+@dnn_present_decorator
 def dnn_present():
     if dnn_present.avail is not None:
         return dnn_present.avail
@@ -241,6 +265,16 @@ dnn_present.avail = None
 dnn_present.msg = None
 
 
+class Dnn_available(Protocol[F]):
+    msg: Optional[bool]
+    __call__: F
+
+
+def dnn_available_decorator(func: Any) -> Dnn_available:
+    return func
+
+
+@dnn_available_decorator
 def dnn_available(context_name):
     if not dnn_present():
         dnn_available.msg = dnn_present.msg
@@ -409,7 +443,17 @@ class DnnVersion(_NoPythonCOp):
         return None
 
 
-def version(raises=True):
+class Version(Protocol[F]):
+    v: Optional[int]
+    __call__: F
+
+
+def version_decorator(func: Any) -> Version:
+    return func
+
+
+@version_decorator
+def version(raises: bool = True) -> int:
     """Return the current cuDNN version we link with.
 
     This also does a check that the header version matches the runtime version.

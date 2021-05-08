@@ -1,5 +1,8 @@
 import os
 import sys
+from typing import Any, Optional
+
+from typing_extensions import Protocol
 
 import aesara.tensor as aet
 from aesara.configdefaults import config
@@ -61,6 +64,17 @@ options.num_threads = 1;
     return True, None
 
 
+class Ctc_present(Protocol):
+    avail: Optional[bool]
+    msg: Optional[str]
+    path: Optional[str]
+
+
+def ctc_present_decorator(func: Any) -> Ctc_present:
+    return func
+
+
+@ctc_present_decorator
 def ctc_present():
     if ctc_present.avail is not None:
         return ctc_present.avail
@@ -75,6 +89,17 @@ ctc_present.msg = None
 ctc_present.path = None
 
 
+class Ctc_available(Protocol):
+    avail: Optional[bool]
+    msg: Optional[str]
+    path: Optional[str]
+
+
+def ctc_available_decorator(func: Any) -> Ctc_available:
+    return func
+
+
+@ctc_available_decorator
 def ctc_available():
     if os.name == "nt":
         ctc_available.msg = ("Windows platforms are currently not supported ",)

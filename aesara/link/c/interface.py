@@ -200,7 +200,7 @@ class CLinkerOp(CLinkerObject):
         """
         raise NotImplementedError()
 
-    def c_code_cache_version_apply(self, node: Apply) -> Tuple[int]:
+    def c_code_cache_version_apply(self, node: Apply) -> Union[Tuple[int], Tuple]:
         """Return a tuple of integers indicating the version of this `Op`.
 
         An empty tuple indicates an 'unversioned' `Op` that will not be

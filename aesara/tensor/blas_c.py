@@ -1,5 +1,9 @@
 # import aesara.tensor.basic as aet
 
+from typing import Any, Optional
+
+from typing_extensions import Protocol
+
 from aesara.configdefaults import config
 from aesara.graph.op import COp
 from aesara.graph.opt import in2out
@@ -644,6 +648,15 @@ cgemv_inplace = CGemv(inplace=True)
 cgemv_no_inplace = CGemv(inplace=False)
 
 
+class Check_force_gemv_init(Protocol):
+    _force_init_beta: Optional[bool]
+
+
+def check_force_gemv_init_decorator(func: Any) -> Check_force_gemv_init:
+    return func
+
+
+@check_force_gemv_init_decorator
 def check_force_gemv_init():
     if check_force_gemv_init._force_init_beta is None:
         from aesara.link.c.cmodule import GCC_compiler

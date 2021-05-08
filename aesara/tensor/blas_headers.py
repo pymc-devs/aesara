@@ -10,6 +10,9 @@ import os
 import sys
 import textwrap
 from os.path import dirname
+from typing import Any
+
+from typing_extensions import Protocol
 
 from aesara.configdefaults import config
 from aesara.link.c.cmodule import GCC_compiler
@@ -18,6 +21,17 @@ from aesara.link.c.cmodule import GCC_compiler
 _logger = logging.getLogger("aesara.tensor.blas")
 
 
+class Detect_macos_sdot_bug(Protocol):
+    tested: bool
+    present: bool
+    fix_works: bool
+
+
+def detect_macos_sdot_bug_decorator(func: Any) -> Detect_macos_sdot_bug:
+    return func
+
+
+@detect_macos_sdot_bug_decorator
 def detect_macos_sdot_bug():
     """
     Try to detect a bug in the default BLAS in MacOS.

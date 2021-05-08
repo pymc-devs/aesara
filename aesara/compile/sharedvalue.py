@@ -5,8 +5,10 @@ Provide a simple user friendly API to Aesara-managed memory.
 
 import copy
 import logging
+from typing import Any, List, Optional
 
 import numpy as np
+from typing_extensions import Protocol
 
 from aesara.graph.basic import Variable
 from aesara.graph.type import generic
@@ -233,7 +235,22 @@ def shared_constructor(ctor, remove=False):
     return ctor
 
 
-def shared(value, name=None, strict=False, allow_downcast=None, **kwargs):
+class Shared(Protocol):
+    constructors: List
+
+
+def shared_decorator(func: Any) -> Shared:
+    return func
+
+
+@shared_decorator
+def shared(
+    value,
+    name: Optional[str] = None,
+    strict: Optional[bool] = False,
+    allow_downcast=None,
+    **kwargs,
+):
     """Return a SharedVariable Variable, initialized with a copy or
     reference of `value`.
 
@@ -310,7 +327,12 @@ shared.constructors = []
 
 
 @shared_constructor
-def generic_constructor(value, name=None, strict=False, allow_downcast=None):
+def generic_constructor(
+    value,
+    name: Optional[str] = None,
+    strict: Optional[bool] = False,
+    allow_downcast: Optional[bool] = None,
+) -> SharedVariable:
     """
     SharedVariable Constructor.
 

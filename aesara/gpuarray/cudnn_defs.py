@@ -16,6 +16,8 @@ Currently supported cuDNN APIs:
 """
 
 
+from typing import Tuple, Union
+
 from aesara.graph.type import CEnumType
 
 
@@ -94,7 +96,9 @@ class CuDNNV51:
 
     conv3d_bwd_filter_algorithms = ("none", "small")
 
-    deterministic_bwd_filter_algorithms = ("deterministic", "fft", "winograd_non_fused")
+    deterministic_bwd_filter_algorithms: Union[
+        Tuple[str, str, str], Tuple[str, str, str, str]
+    ] = ("deterministic", "fft", "winograd_non_fused")
 
     cudnnConvolutionBwdDataAlgo_t = CEnumType(
         ("CUDNN_CONVOLUTION_BWD_DATA_ALGO_0", "none"),

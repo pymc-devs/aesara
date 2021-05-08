@@ -14,9 +14,9 @@ import os
 import re
 import subprocess
 import sys
-from typing import Dict
+from typing import Dict, Callable
 
-def get_keywords():
+def get_keywords() -> Dict[str, str]:
     """Get the keywords needed to look up the version information."""
     # these strings will be replaced by git during git-archive.
     # setup.py/versioneer.py will grep for the variable names, so they must
@@ -55,7 +55,7 @@ LONG_VERSION_PY: Dict = {}
 HANDLERS: Dict = {}
 
 
-def register_vcs_handler(vcs, method):  # decorator
+def register_vcs_handler(vcs, method) -> Callable:  # decorator
     """Decorator to mark a method as the handler for a particular VCS."""
 
     def decorate(f):

@@ -43,15 +43,7 @@ from aesara.tensor.extra_ops import (
     UnravelIndex,
 )
 from aesara.tensor.math import Dot, MaxAndArgmax
-from aesara.tensor.nlinalg import (
-    SVD,
-    Det,
-    Eig,
-    Eigh,
-    MatrixInverse,
-    QRFull,
-    QRIncomplete,
-)
+from aesara.tensor.nlinalg import SVD, Det, Eig, Eigh, MatrixInverse, QRFull
 from aesara.tensor.nnet.basic import LogSoftmax, Softmax
 from aesara.tensor.nnet.sigm import ScalarSoftplus
 from aesara.tensor.random.op import RandomVariable
@@ -829,16 +821,6 @@ def jax_funcify_QRFull(op, **kwargs):
         return jnp.linalg.qr(x, mode=mode)
 
     return qr_full
-
-
-@jax_funcify.register(QRIncomplete)
-def jax_funcify_QRIncomplete(op, **kwargs):
-    mode = op.mode
-
-    def qr_incomplete(x, mode=mode):
-        return jnp.linalg.qr(x, mode=mode)
-
-    return qr_incomplete
 
 
 @jax_funcify.register(SVD)

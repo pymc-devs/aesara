@@ -408,47 +408,31 @@ class QRFull(Op):
     def make_node(self, x):
         x = as_tensor_variable(x)
         assert x.ndim == 2, "The input of qr function should be a matrix."
-        q = matrix(dtype=x.dtype)
+
+        in_dtype = x.type.numpy_dtype
+        out_dtype = np.dtype(f"f{in_dtype.itemsize}")
+
         if self.mode != "raw":
             r = matrix(dtype=x.dtype)
         else:
             r = vector(dtype=x.dtype)
 
-        return Apply(self, [x], [q, r])
+        if self.mode != "r":
+            q = matrix(dtype=out_dtype)
+            outputs = [q, r]
+        else:
+            outputs = [r]
+
+        return Apply(self, [x], outputs)
 
     def perform(self, node, inputs, outputs):
         (x,) = inputs
-        (q, r) = outputs
         assert x.ndim == 2, "The input of qr function should be a matrix."
-        q[0], r[0] = self._numop(x, self.mode)
-
-
-class QRIncomplete(Op):
-    """
-    Incomplete QR Decomposition.
-
-    Computes the QR decomposition of a matrix.
-    Factor the matrix a as qr and return a single matrix R.
-
-    """
-
-    _numop = staticmethod(np.linalg.qr)
-    __props__ = ("mode",)
-
-    def __init__(self, mode):
-        self.mode = mode
-
-    def make_node(self, x):
-        x = as_tensor_variable(x)
-        assert x.ndim == 2, "The input of qr function should be a matrix."
-        r = matrix(dtype=x.dtype)
-        return Apply(self, [x], [r])
-
-    def perform(self, node, inputs, outputs):
-        (x,) = inputs
-        (r,) = outputs
-        assert x.ndim == 2, "The input of qr function should be a matrix."
-        r[0] = self._numop(x, self.mode)
+        res = self._numop(x, self.mode)
+        if self.mode != "r":
+            outputs[0][0], outputs[1][0] = res
+        else:
+            outputs[0][0] = res
 
 
 def qr(a, mode="reduced"):
@@ -493,12 +477,7 @@ def qr(a, mode="reduced"):
         The upper-triangular matrix.
 
     """
-
-    x = [[2, 1], [3, 4]]
-    if isinstance(np.linalg.qr(x, mode), tuple):
-        return QRFull(mode)(a)
-    else:
-        return QRIncomplete(mode)(a)
+    return QRFull(mode)(a)
 
 
 class SVD(Op):

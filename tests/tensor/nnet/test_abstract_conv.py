@@ -13,7 +13,6 @@ from aesara.tensor.nnet.abstract_conv import (
     AbstractConv2d_gradInputs,
     AbstractConv2d_gradWeights,
     assert_conv_shape,
-    assert_shape,
     bilinear_kernel_1D,
     bilinear_kernel_2D,
     bilinear_upsampling,
@@ -306,29 +305,6 @@ class TestAssertConvShape:
 
 
 class TestAssertShape:
-    @config.change_flags(conv__assert_shape=True)
-    def test_basic(self):
-        x = tensor4()
-        s1 = iscalar()
-        s2 = iscalar()
-        expected_shape = [None, s1, s2, None]
-        f = aesara.function([x, s1, s2], assert_shape(x, expected_shape))
-
-        v = np.zeros((3, 5, 7, 11), dtype="float32")
-        assert 0 == np.sum(f(v, 5, 7))
-
-        with pytest.raises(AssertionError):
-            f(v, 5, 0)
-
-        with pytest.raises(AssertionError):
-            f(v, 5, 9)
-
-        with pytest.raises(AssertionError):
-            f(v, 0, 7)
-
-        with pytest.raises(AssertionError):
-            f(v, 7, 7)
-
     @config.change_flags(conv__assert_shape=True)
     def test_shape_check_conv2d(self):
         input = tensor4()

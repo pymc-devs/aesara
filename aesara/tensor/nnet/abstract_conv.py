@@ -28,6 +28,7 @@ from aesara.tensor.basic import (
     patternbroadcast,
 )
 from aesara.tensor.exceptions import NotScalarConstantError
+from aesara.tensor.shape import specify_shape
 from aesara.tensor.var import TensorConstant, TensorVariable
 
 
@@ -568,41 +569,6 @@ def assert_conv_shape(shape):
                 )
                 out_shape.append(assert_shp(n, aet.gt(n, 0)))
     return tuple(out_shape)
-
-
-def assert_shape(x, expected_shape, msg="Unexpected shape."):
-    """Wraps `x` in an `Assert` to check its shape.
-
-    Parameters
-    ----------
-    x : TensorVariable
-        x will be wrapped in an `Assert`.
-    expected_shape : tuple or list
-        The expected shape of `x`. The size of a dimension can be None,
-        which means it will not be checked.
-    msg : str
-        The error message of the `Assert`.
-
-    Returns
-    -------
-    Tensor
-        `x` wrapped in an `Assert`. At execution time, this will throw an
-        AssertionError if the shape of `x` does not match `expected_shape`.
-        If `expected_shape` is None or contains only Nones, the function
-        will return `x` directly.
-
-    """
-    if expected_shape is None or not config.conv__assert_shape:
-        return x
-    shape = x.shape
-    tests = []
-    for i in range(x.ndim):
-        if expected_shape[i] is not None:
-            tests.append(aet.eq(shape[i], expected_shape[i]))
-    if tests:
-        return Assert(msg)(x, *tests)
-    else:
-        return x
 
 
 def border_mode_to_pad(mode, convdim, kshp):
@@ -2543,18 +2509,8 @@ class AbstractConv(BaseAbstractConv):
             if kern.type.ndim != 2 + self.convdim:
                 raise TypeError(f"kern must be {int(2 + self.convdim)}D tensor")
 
-        img = assert_shape(
-            img,
-            self.imshp,
-            "AbstractConv shape mismatch: shape of "
-            "image does not match given imshp.",
-        )
-        kern = assert_shape(
-            kern,
-            self.kshp,
-            "AbstractConv shape mismatch: shape of "
-            "filters does not match given kshp.",
-        )
+        img = specify_shape(img, self.imshp)
+        kern = specify_shape(kern, self.kshp)
 
         broadcastable = [img.broadcastable[0], kern.broadcastable[0]] + (
             [False] * self.convdim
@@ -2884,11 +2840,9 @@ class AbstractConv_gradWeights(BaseAbstractConv):
         if topgrad.type.ndim != 2 + self.convdim:
             raise TypeError(f"topgrad must be {int(2 + self.convdim)}D tensor")
         if add_assert_shape:
-            img = assert_shape(
+            img = specify_shape(
                 img,
                 self.imshp,
-                "AbstractConv_gradWeights shape mismatch: shape of "
-                "image does not match given imshp.",
             )
 
         shape = as_tensor_variable(shape)
@@ -3264,11 +3218,9 @@ class AbstractConv_gradInputs(BaseAbstractConv):
             raise TypeError(f"topgrad must be {int(2 + self.convdim)}D tensor")
 
         if add_assert_shape:
-            kern = assert_shape(
+            kern = specify_shape(
                 kern,
                 self.kshp,
-                "AbstractConv_gradInputs shape mismatch: shape of "
-                "filters does not match given kshp.",
             )
 
         shape = as_tensor_variable(shape)

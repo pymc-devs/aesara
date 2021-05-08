@@ -314,8 +314,8 @@ def get_scalar_constant_value(
 
     Parameters
     ----------
-    orig_v :
-
+    orig_v : int, float, np.ndarray, Constant or None
+        The variable `v` where to find the constant scalar(0-D).
     elemwise : bool
         If False, we won't try to go into elemwise. So this call is faster.
         But we still investigate in Second Elemwise (as this is a substitute

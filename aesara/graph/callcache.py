@@ -1,6 +1,6 @@
 import logging
 import pickle
-from typing import Callable, Dict, NoReturn, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 
 _logger = logging.getLogger("aesara.graph.callcache")
@@ -17,7 +17,7 @@ class CallCache:
         except OSError:
             self.cache: Dict = {}
 
-    def persist(self, filename: Optional[str] = None) -> NoReturn:
+    def persist(self, filename: Optional[str] = None) -> None:
         """
         Cache "filename" as a pickle file
         """
@@ -47,7 +47,7 @@ class CallCache:
             _logger.debug("cache hit %i", len(self.cache))
         return self.cache[key]
 
-    def __del__(self) -> NoReturn:
+    def __del__(self) -> None:
         try:
             if self.filename:
                 self.persist()

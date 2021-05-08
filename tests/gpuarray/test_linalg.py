@@ -22,15 +22,7 @@ from aesara.gpuarray.linalg import (
     gpu_solve_lower_triangular,
     gpu_svd,
 )
-from aesara.tensor.nlinalg import (
-    SVD,
-    MatrixInverse,
-    QRFull,
-    QRIncomplete,
-    eigh,
-    matrix_inverse,
-    qr,
-)
+from aesara.tensor.nlinalg import SVD, MatrixInverse, QRFull, eigh, matrix_inverse, qr
 from aesara.tensor.slinalg import Cholesky, cholesky, imported_scipy
 from aesara.tensor.type import fmatrix, matrix, tensor3, vector
 from tests import unittest_tools as utt
@@ -380,7 +372,6 @@ class TestMagma:
             (MatrixInverse(), GpuMagmaMatrixInverse),
             (SVD(), GpuMagmaSVD),
             (QRFull(mode="reduced"), GpuMagmaQR),
-            (QRIncomplete(mode="r"), GpuMagmaQR),
             # TODO: add support for float16 to Eigh numpy
             # (Eigh(), GpuMagmaEigh),
             (Cholesky(), GpuMagmaCholesky),

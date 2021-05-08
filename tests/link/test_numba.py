@@ -10,6 +10,8 @@ import aesara.scalar as aes
 import aesara.scalar.basic as aesb
 import aesara.tensor as aet
 import aesara.tensor.basic as aetb
+import aesara.tensor.math as aem
+import aesara.tensor.nnet.basic as nnetb
 from aesara import config
 from aesara.compile.function import function
 from aesara.compile.mode import Mode
@@ -24,9 +26,10 @@ from aesara.link.numba.dispatch import create_numba_signature, get_numba_type
 from aesara.link.numba.linker import NumbaLinker
 from aesara.scalar.basic import Composite
 from aesara.tensor import elemwise as aet_elemwise
-from aesara.tensor import extra_ops
+from aesara.tensor import extra_ops, nlinalg, slinalg
 from aesara.tensor import subtensor as aet_subtensor
 from aesara.tensor.elemwise import Elemwise
+from aesara.tensor.nnet import sigm
 from aesara.tensor.shape import Reshape, Shape, Shape_i, SpecifyShape
 
 
@@ -69,6 +72,8 @@ class MyMultiOut(Op):
 opts = Query(include=[None], exclude=["cxx_only", "BlasOpt"])
 numba_mode = Mode(NumbaLinker(), opts)
 py_mode = Mode("py", opts)
+
+np.random.seed(42849)
 
 
 def set_test_value(x, v):
@@ -1656,6 +1661,582 @@ def test_Searchsorted(a, v, side, sorter, exc):
 def test_BroadcastTo(x, shape, exc):
     g = extra_ops.BroadcastTo()(x, shape)
     g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, y, exc",
+    [
+        (
+            set_test_value(
+                aet.matrix(), np.random.random(size=(3, 2)).astype(config.floatX)
+            ),
+            set_test_value(
+                aet.vector(), np.random.random(size=(2,)).astype(config.floatX)
+            ),
+            None,
+        ),
+        (
+            set_test_value(aet.lmatrix(), np.random.poisson(size=(3, 2))),
+            set_test_value(
+                aet.fvector(), np.random.random(size=(2,)).astype("float32")
+            ),
+            None,
+        ),
+    ],
+)
+def test_Dot(x, y, exc):
+    g = aem.Dot()(x, y)
+    g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, exc",
+    [
+        (
+            set_test_value(
+                aet.vector(), np.random.random(size=(2,)).astype(config.floatX)
+            ),
+            None,
+        ),
+        (
+            set_test_value(
+                aet.matrix(), np.random.random(size=(2, 3)).astype(config.floatX)
+            ),
+            None,
+        ),
+    ],
+)
+def test_Softmax(x, exc):
+    g = nnetb.Softmax()(x)
+    g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, exc",
+    [
+        (
+            set_test_value(
+                aet.vector(), np.random.random(size=(2,)).astype(config.floatX)
+            ),
+            None,
+        ),
+        (
+            set_test_value(
+                aet.matrix(), np.random.random(size=(2, 3)).astype(config.floatX)
+            ),
+            None,
+        ),
+    ],
+)
+def test_LogSoftmax(x, exc):
+    g = nnetb.LogSoftmax()(x)
+    g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, exc",
+    [
+        (
+            set_test_value(aes.float64(), np.array(0.0, dtype="float64")),
+            None,
+        ),
+        (
+            set_test_value(aes.float64(), np.array(-32.0, dtype="float64")),
+            None,
+        ),
+        (
+            set_test_value(aes.float64(), np.array(32.0, dtype="float64")),
+            None,
+        ),
+        (
+            set_test_value(aes.int64(), np.array(32, dtype="int64")),
+            None,
+        ),
+    ],
+)
+def test_ScalarSoftplus(x, exc):
+    g = sigm.ScalarSoftplus(aes.upgrade_to_float)(x)
+    g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, axes, exc",
+    [
+        (
+            set_test_value(aet.dscalar(), np.array(0.0, dtype="float64")),
+            [],
+            None,
+        ),
+        (
+            set_test_value(
+                aet.dvector(), np.random.random(size=(3,)).astype("float64")
+            ),
+            [0],
+            None,
+        ),
+        (
+            set_test_value(
+                aet.dmatrix(), np.random.random(size=(3, 2)).astype("float64")
+            ),
+            [0],
+            None,
+        ),
+        (
+            set_test_value(
+                aet.dmatrix(), np.random.random(size=(3, 2)).astype("float64")
+            ),
+            [0, 1],
+            None,
+        ),
+    ],
+)
+def test_MaxAndArgmax(x, axes, exc):
+    g = aem.MaxAndArgmax(axes)(x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, lower, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            True,
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            True,
+            None,
+        ),
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            False,
+            UserWarning,
+        ),
+    ],
+)
+def test_Cholesky(x, lower, exc):
+    g = slinalg.Cholesky(lower)(x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "A, x, lower, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            set_test_value(
+                aet.dvector(), np.random.random(size=(3,)).astype("float64")
+            ),
+            "general",
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            set_test_value(
+                aet.dvector(), np.random.random(size=(3,)).astype("float64")
+            ),
+            "general",
+            None,
+        ),
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            set_test_value(
+                aet.dvector(), np.random.random(size=(3,)).astype("float64")
+            ),
+            "lower_triangular",
+            UserWarning,
+        ),
+    ],
+)
+def test_Solve(A, x, lower, exc):
+    g = slinalg.Solve(lower)(A, x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(np.random.poisson(size=(3, 3)).astype("int64")),
+            ),
+            None,
+        ),
+    ],
+)
+def test_Det(x, exc):
+    g = nlinalg.Det()(x)
+    g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            None,
+        ),
+    ],
+)
+def test_Eig(x, exc):
+    g = nlinalg.Eig()(x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, uplo, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            "L",
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            "U",
+            UserWarning,
+        ),
+    ],
+)
+def test_Eigh(x, uplo, exc):
+    g = nlinalg.Eigh(uplo)(x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            None,
+        ),
+    ],
+)
+def test_MatrixInverse(x, exc):
+    g = nlinalg.MatrixInverse()(x)
+    g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, mode, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            "reduced",
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            "reduced",
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            "complete",
+            UserWarning,
+        ),
+    ],
+)
+def test_QRFull(x, mode, exc):
+    g = nlinalg.QRFull(mode)(x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
+
+    cm = contextlib.suppress() if exc is None else pytest.warns(exc)
+    with cm:
+        compare_numba_and_py(
+            g_fg,
+            [
+                i.tag.test_value
+                for i in g_fg.inputs
+                if not isinstance(i, (SharedVariable, Constant))
+            ],
+        )
+
+
+@pytest.mark.parametrize(
+    "x, full_matrices, compute_uv, exc",
+    [
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            True,
+            True,
+            None,
+        ),
+        (
+            set_test_value(
+                aet.dmatrix(),
+                (lambda x: x.T.dot(x))(np.random.random(size=(3, 3)).astype("float64")),
+            ),
+            False,
+            True,
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            True,
+            True,
+            None,
+        ),
+        (
+            set_test_value(
+                aet.lmatrix(),
+                (lambda x: x.T.dot(x))(
+                    np.random.randint(1, 10, size=(3, 3)).astype("int64")
+                ),
+            ),
+            True,
+            False,
+            UserWarning,
+        ),
+    ],
+)
+def test_SVD(x, full_matrices, compute_uv, exc):
+    g = nlinalg.SVD(full_matrices, compute_uv)(x)
+
+    if isinstance(g, list):
+        g_fg = FunctionGraph(outputs=g)
+    else:
+        g_fg = FunctionGraph(outputs=[g])
 
     cm = contextlib.suppress() if exc is None else pytest.warns(exc)
     with cm:

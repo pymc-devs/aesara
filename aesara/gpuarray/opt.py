@@ -2887,23 +2887,6 @@ def local_gpu_magma_qr(fgraph, op, context_name, inputs, outputs):
     return out
 
 
-@register_opt("magma", "fast_compile")
-@op_lifter([nlinalg.QRIncomplete])
-@register_opt2([nlinalg.QRIncomplete], "magma", "fast_compile")
-def local_gpu_magma_qr_incomplete(fgraph, op, context_name, inputs, outputs):
-    if not config.magma__enabled:
-        return
-    if inputs[0].dtype not in ["float16", "float32"]:
-        return
-    x = inputs[0]
-    if inputs[0].dtype == "float16":
-        x = inputs[0].astype("float32")
-    out = gpu_qr(x, complete=False)
-    if inputs[0].dtype == "float16":
-        return [out.astype("float16")]
-    return out
-
-
 # Matrix inverse
 @register_opt("magma", "fast_compile")
 @op_lifter([nlinalg.MatrixInverse])

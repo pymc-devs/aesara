@@ -1,7 +1,9 @@
 import operator
 import warnings
 from functools import reduce, singledispatch
+from numbers import Number
 from textwrap import indent
+from typing import Union
 
 import numba
 import numpy as np
@@ -59,7 +61,12 @@ from aesara.tensor.extra_ops import (
     Unique,
     UnravelIndex,
 )
+from aesara.tensor.math import Dot, MaxAndArgmax
+from aesara.tensor.nlinalg import SVD, Det, Eig, Eigh, MatrixInverse, QRFull
+from aesara.tensor.nnet.basic import LogSoftmax, Softmax
+from aesara.tensor.nnet.sigm import ScalarSoftplus
 from aesara.tensor.shape import Reshape, Shape, Shape_i, SpecifyShape
+from aesara.tensor.slinalg import Cholesky, Solve
 from aesara.tensor.subtensor import (
     AdvancedIncSubtensor,
     AdvancedIncSubtensor1,
@@ -383,6 +390,119 @@ def {elemwise_fn_name}({input_names}):
     return elemwise_fn
 
 
+def create_axis_reducer(
+    reduce_fn: numba.np.ufunc.dufunc.DUFunc,
+    identity: Union[np.ndarray, Number],
+    axis: int,
+    ndim: int,
+    dtype: numba.types.Type,
+    keepdims: bool = False,
+) -> numba.core.dispatcher.Dispatcher:
+    """Create a Numba JITed function that performs a NumPy reduction on a given axis.
+
+    Parameters
+    ==========
+    reduce_fn:
+        The Numba ``ufunc`` representing a binary op that can perform the
+        reduction on arbitrary ``ndarray``s.
+    identity:
+        The identity value for the reduction.
+    axis:
+        The axis to reduce.
+    ndim:
+        The number of dimensions of the result.
+    dtype:
+        The data type of the result.
+    keepdims:
+        Determines whether or not the reduced dimension is retained.
+    """
+    if ndim > 1:
+
+        if keepdims:
+
+            @numba.njit(inline="always")
+            def set_out_dims(x):
+                return np.expand_dims(x, axis)
+
+        else:
+
+            @numba.njit(inline="always")
+            def set_out_dims(x):
+                return x
+
+        res_shape_tuple_ctor = create_tuple_creator(
+            lambda i, shape: shape[i] if i < axis else shape[i + 1], ndim - 1
+        )
+
+        reaxis_first = (axis,) + tuple(i for i in range(ndim) if i != axis)
+
+        @numba.njit(boundscheck=False)
+        def careduce_axis(x):
+            res_shape = res_shape_tuple_ctor(x.shape)
+            x_axis_first = x.transpose(reaxis_first)
+
+            res = np.full(res_shape, to_scalar(identity), dtype=dtype)
+            for m in range(x.shape[axis]):
+                reduce_fn(res, x_axis_first[m], res)
+
+            return set_out_dims(res)
+
+    else:
+
+        if keepdims:
+
+            @numba.njit(inline="always")
+            def set_out_dims(x):
+                return np.array([x], dtype)
+
+        else:
+
+            @numba.njit(inline="always")
+            def set_out_dims(x):
+                return direct_cast(x, dtype)
+
+        @numba.njit(boundscheck=False)
+        def careduce_axis(x):
+            res = to_scalar(identity)
+            for val in x:
+                res = reduce_fn(res, val)
+            return set_out_dims(res)
+
+    return careduce_axis
+
+
+def create_multiaxis_reducer(
+    reduce_fn, identity, axes, ndim, dtype, input_name="input"
+):
+    careduce_fn_name = f"careduce_{get_name_for_object(reduce_fn)}"
+    careduce_axes_fns = ()
+    to_reduce = reversed(sorted(axes))
+    careduce_lines_src = []
+    var_name = input_name
+    for i, axis in enumerate(to_reduce):
+        careduce_axes_fns += (
+            create_axis_reducer(reduce_fn, identity, axis - i, ndim, dtype),
+        )
+        ndim -= 1
+        last_var_name = var_name
+        var_name = f"axis_{i}_res"
+        careduce_lines_src.append(
+            f"{var_name} = careduce_axes_fns[{i}]({last_var_name})"
+        )
+
+    careduce_assign_lines = indent("\n".join(careduce_lines_src), " " * 4)
+    careduce_def_src = f"""
+def {careduce_fn_name}({input_name}):
+{careduce_assign_lines}
+    return {var_name}
+    """
+
+    global_env = {"careduce_axes_fns": careduce_axes_fns}
+
+    careduce_fn = compile_function_src(careduce_def_src, careduce_fn_name, global_env)
+    return careduce_fn
+
+
 @numba_funcify.register(CAReduce)
 def numba_funcify_CAReduce(op, node, **kwargs):
     axes = op.axis
@@ -412,62 +532,11 @@ def numba_funcify_CAReduce(op, node, **kwargs):
     )
     elemwise_fn = numba_funcify_Elemwise(op, dummy_node, use_signature=True, **kwargs)
 
-    def create_careduce_axis(axis, ndim):
-        if ndim > 1:
-            res_shape_tuple_ctor = create_tuple_creator(
-                lambda i, shape: shape[i] if i < axis else shape[i + 1], ndim - 1
-            )
-
-            reaxis_first = (axis,) + tuple(i for i in range(ndim) if i != axis)
-
-            @numba.njit(boundscheck=False)
-            def careduce_axis(x):
-                res_shape = res_shape_tuple_ctor(x.shape)
-                x_axis_first = x.transpose(reaxis_first)
-
-                res = np.full(res_shape, scalar_op_identity.item(), dtype=acc_dtype)
-                for m in range(x.shape[axis]):
-                    elemwise_fn(res, x_axis_first[m], res)
-
-                return res
-
-        else:
-
-            @numba.njit(boundscheck=False)
-            def careduce_axis(x):
-                res = scalar_op_identity.item()
-                for val in x:
-                    res = elemwise_fn(res, val)
-                return res
-
-        return careduce_axis
-
-    careduce_fn_name = f"careduce_{get_name_for_object(elemwise_fn)}"
-    ndim = node.inputs[0].ndim
-    careduce_axes_fns = ()
-    to_reduce = reversed(sorted(axes))
-    careduce_lines_src = []
     input_name = get_name_for_object(node.inputs[0])
-    var_name = input_name
-    for i, axis in enumerate(to_reduce):
-        careduce_axes_fns += (create_careduce_axis(axis - i, ndim),)
-        ndim -= 1
-        last_var_name = var_name
-        var_name = f"axis_{i}_res"
-        careduce_lines_src.append(
-            f"{var_name} = careduce_axes_fns[{i}]({last_var_name})"
-        )
-
-    careduce_assign_lines = indent("\n".join(careduce_lines_src), " " * 4)
-    careduce_def_src = f"""
-def {careduce_fn_name}({input_name}):
-{careduce_assign_lines}
-    return {var_name}
-    """
-
-    global_env = {"careduce_axes_fns": careduce_axes_fns}
-
-    careduce_fn = compile_function_src(careduce_def_src, careduce_fn_name, global_env)
+    ndim = node.inputs[0].ndim
+    careduce_fn = create_multiaxis_reducer(
+        elemwise_fn, scalar_op_identity, axes, ndim, acc_dtype, input_name=input_name
+    )
 
     return numba.njit(careduce_fn)
 
@@ -851,7 +920,14 @@ def numba_funcify_Rebroadcast(op, **kwargs):
 
 @numba.extending.intrinsic
 def direct_cast(typingctx, val, typ):
-    casted = typ.instance_type
+
+    if isinstance(typ, numba.types.TypeRef):
+        casted = typ.instance_type
+    elif isinstance(typ, numba.types.DTypeSpec):
+        casted = typ.dtype
+    else:
+        casted = typ
+
     sig = casted(casted, typ)
 
     def codegen(context, builder, signature, args):
@@ -1334,3 +1410,400 @@ def numba_funcify_BroadcastTo(op, node, **kwargs):
         return ret
 
     return broadcastto
+
+
+def int_to_float_fn(inputs, out_dtype):
+    """Create a Numba function that converts integer and boolean ``ndarray``s to floats."""
+
+    if any(i.type.numpy_dtype.kind in "ib" for i in inputs):
+
+        args_dtype = np.dtype(f"f{out_dtype.itemsize}")
+
+        @numba.njit(inline="always")
+        def inputs_cast(x):
+            return x.astype(args_dtype)
+
+    else:
+
+        @numba.njit(inline="always")
+        def inputs_cast(x):
+            return x
+
+    return inputs_cast
+
+
+@numba_funcify.register(Dot)
+def numba_funcify_Dot(op, node, **kwargs):
+    # Numba's `np.dot` does not support integer dtypes, so we need to cast to
+    # float.
+
+    out_dtype = node.outputs[0].type.numpy_dtype
+    inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+    @numba.njit
+    def dot(x, y):
+        return np.dot(inputs_cast(x), inputs_cast(y)).astype(out_dtype)
+
+    return dot
+
+
+@numba_funcify.register(Softmax)
+def numba_funcify_Softmax(op, node, **kwargs):
+
+    x_at = node.inputs[0]
+    x_dtype = x_at.type.numpy_dtype
+    x_dtype = numba.np.numpy_support.from_dtype(x_dtype)
+
+    # np.max(x, axis=1)
+    reduce_max = create_axis_reducer(np.maximum, -np.inf, 1, x_at.ndim, x_dtype)
+    # np.sum(x, axis=1)
+    reduce_sum = create_axis_reducer(np.add, 0.0, 1, x_at.ndim, x_dtype)
+
+    @numba.njit
+    def softmax(x):
+        z = np.expand_dims(reduce_max(x), -1)
+        e_x = np.exp(x - z)
+        w = np.expand_dims(reduce_sum(e_x), -1)
+        sm = e_x / w
+        return sm
+
+    return softmax
+
+
+@numba_funcify.register(LogSoftmax)
+def numba_funcify_LogSoftmax(op, node, **kwargs):
+
+    x_at = node.inputs[0]
+    x_dtype = x_at.type.numpy_dtype
+    x_dtype = numba.np.numpy_support.from_dtype(x_dtype)
+
+    # np.max(x, axis=1)
+    reduce_max = create_axis_reducer(np.maximum, -np.inf, 1, x_at.ndim, x_dtype)
+    # np.sum(x, axis=1, keepdims=True)
+    reduce_sum = create_axis_reducer(np.add, 0.0, 1, x_at.ndim, x_dtype, keepdims=True)
+
+    @numba.njit
+    def log_softmax(x):
+        xdev = x - np.expand_dims(reduce_max(x), -1)
+        lsm = xdev - np.log(reduce_sum(np.exp(xdev)))
+        return lsm
+
+    return log_softmax
+
+
+@numba_funcify.register(ScalarSoftplus)
+def numba_funcify_ScalarSoftplus(op, node, **kwargs):
+
+    not_int8 = node.inputs[0].dtype not in ("int8", "uint8")
+
+    @numba.njit
+    def scalarsoftplus(x):
+        if x < -37.0:
+            return np.exp(x) if not_int8 else np.exp(x)
+        elif x < 18.0:
+            return np.log1p(np.exp(x)) if not_int8 else np.log1p(np.exp(x))
+        elif x < 33.3:
+            return x + np.exp(-x) if not_int8 else x + np.exp(-x)
+        else:
+            return x
+
+    return scalarsoftplus
+
+
+def create_axis_apply_fn(fn, axis, ndim, dtype):
+    reaxis_first = tuple(i for i in range(ndim) if i != axis) + (axis,)
+
+    @numba.njit(boundscheck=False)
+    def axis_apply_fn(x):
+        x_reaxis = x.transpose(reaxis_first)
+
+        res = np.zeros(x_reaxis.shape[:-1], dtype=dtype)
+        for m in np.ndindex(res.shape):
+            v = fn(x_reaxis[m])
+            res[m] = v
+        return res
+
+    return axis_apply_fn
+
+
+@numba_funcify.register(MaxAndArgmax)
+def numba_funcify_MaxAndArgmax(op, node, **kwargs):
+    axis = op.axis
+    x_at = node.inputs[0]
+    x_dtype = x_at.type.numpy_dtype
+    x_dtype = numba.np.numpy_support.from_dtype(x_dtype)
+    x_ndim = x_at.ndim
+
+    if x_ndim == 0:
+
+        @numba.njit(inline="always")
+        def maxandargmax(x):
+            return x, 0
+
+    else:
+
+        if axis is None:
+            axes = tuple(range(x_ndim))
+        else:
+            axes = tuple(int(ax) for ax in axis)
+
+        # NumPy does not support multiple axes for argmax; this is a
+        # work-around
+        keep_axes = tuple(i for i in range(x_ndim) if i not in axes)
+
+        reduce_max = numba.njit(
+            create_multiaxis_reducer(np.maximum, -np.inf, axes, x_ndim, x_dtype)
+        )
+        reduced_x_ndim = x_ndim - len(axes) + 1
+        argmax_axis = create_axis_apply_fn(
+            np.argmax, reduced_x_ndim - 1, reduced_x_ndim, np.int64
+        )
+
+        reaxis_order = keep_axes + axes
+        sl1 = slice(None, len(keep_axes))
+        sl2 = slice(len(keep_axes), None)
+
+        @numba.njit
+        def maxandargmax(x):
+            max_res = reduce_max(x)
+
+            # Not-reduced axes in front
+            transposed_x = np.ascontiguousarray(np.transpose(x, reaxis_order))
+            kept_shape = transposed_x.shape[sl1]
+            reduced_shape = transposed_x.shape[sl2]
+            reduced_size = 1
+            for s in reduced_shape:
+                reduced_size *= s
+
+            # Numpy.prod returns 1.0 when arg is empty, so we cast it to int64
+            # Otherwise reshape would complain citing float arg
+            new_shape = kept_shape + (reduced_size,)
+            reshaped_x = transposed_x.reshape(new_shape)
+
+            max_idx_res = argmax_axis(reshaped_x)
+
+            return max_res, max_idx_res
+
+    return maxandargmax
+
+
+@numba_funcify.register(Cholesky)
+def numba_funcify_Cholesky(op, node, **kwargs):
+    lower = op.lower
+
+    out_dtype = node.outputs[0].type.numpy_dtype
+
+    if lower:
+
+        inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+        @numba.njit
+        def cholesky(a):
+            return np.linalg.cholesky(inputs_cast(a)).astype(out_dtype)
+
+    else:
+        # TODO: Use SciPy's BLAS/LAPACK Cython wrappers.
+
+        warnings.warn(
+            (
+                "Numba will use object mode to allow the "
+                "`lower` argument to `scipy.linalg.cholesky`."
+            ),
+            UserWarning,
+        )
+
+        ret_sig = get_numba_type(node.outputs[0].type)
+
+        @numba.njit
+        def cholesky(a):
+            with numba.objmode(ret=ret_sig):
+                ret = scipy.linalg.cholesky(a, lower=lower).astype(out_dtype)
+            return ret
+
+    return cholesky
+
+
+@numba_funcify.register(Solve)
+def numba_funcify_Solve(op, node, **kwargs):
+
+    if op.A_structure == "lower_triangular" or op.A_structure == "upper_triangular":
+
+        lower = op.A_structure == "lower_triangular"
+
+        warnings.warn(
+            (
+                "Numba will use object mode to allow the "
+                "`compute_uv` argument to `numpy.linalg.svd`."
+            ),
+            UserWarning,
+        )
+
+        ret_sig = get_numba_type(node.outputs[0].type)
+
+        @numba.njit
+        def solve(a, b):
+            with numba.objmode(ret=ret_sig):
+                ret = scipy.linalg.solve_triangular(a, b, lower=lower)
+            return ret
+
+    else:
+        out_dtype = node.outputs[0].type.numpy_dtype
+        inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+        @numba.njit
+        def solve(a, b):
+            return np.linalg.solve(inputs_cast(a), inputs_cast(b)).astype(out_dtype)
+
+    return solve
+
+
+@numba_funcify.register(Det)
+def numba_funcify_Det(op, node, **kwargs):
+
+    out_dtype = node.outputs[0].type.numpy_dtype
+    inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+    @numba.njit
+    def det(x):
+        return direct_cast(np.linalg.det(inputs_cast(x)), out_dtype)
+
+    return det
+
+
+@numba_funcify.register(Eig)
+def numba_funcify_Eig(op, node, **kwargs):
+
+    out_dtype_1 = node.outputs[0].type.numpy_dtype
+    out_dtype_2 = node.outputs[1].type.numpy_dtype
+
+    inputs_cast = int_to_float_fn(node.inputs, out_dtype_1)
+
+    @numba.njit
+    def eig(x):
+        out = np.linalg.eig(inputs_cast(x))
+        return (out[0].astype(out_dtype_1), out[1].astype(out_dtype_2))
+
+    return eig
+
+
+@numba_funcify.register(Eigh)
+def numba_funcify_Eigh(op, node, **kwargs):
+    uplo = op.UPLO
+
+    if uplo != "L":
+
+        warnings.warn(
+            (
+                "Numba will use object mode to allow the "
+                "`UPLO` argument to `numpy.linalg.eigh`."
+            ),
+            UserWarning,
+        )
+
+        out_dtypes = tuple(o.type.numpy_dtype for o in node.outputs)
+        ret_sig = numba.types.Tuple(
+            [get_numba_type(node.outputs[0].type), get_numba_type(node.outputs[1].type)]
+        )
+
+        @numba.njit
+        def eigh(x):
+            with numba.objmode(ret=ret_sig):
+                out = np.linalg.eigh(x, UPLO=uplo)
+                ret = (out[0].astype(out_dtypes[0]), out[1].astype(out_dtypes[1]))
+            return ret
+
+    else:
+
+        @numba.njit
+        def eigh(x):
+            return np.linalg.eigh(x)
+
+    return eigh
+
+
+@numba_funcify.register(MatrixInverse)
+def numba_funcify_MatrixInverse(op, node, **kwargs):
+
+    out_dtype = node.outputs[0].type.numpy_dtype
+    inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+    @numba.njit
+    def matrix_inverse(x):
+        return np.linalg.inv(inputs_cast(x)).astype(out_dtype)
+
+    return matrix_inverse
+
+
+@numba_funcify.register(QRFull)
+def numba_funcify_QRFull(op, node, **kwargs):
+    mode = op.mode
+
+    if mode != "reduced":
+        warnings.warn(
+            (
+                "Numba will use object mode to allow the "
+                "`mode` argument to `numpy.linalg.qr`."
+            ),
+            UserWarning,
+        )
+
+        if len(node.outputs) > 1:
+            ret_sig = numba.types.Tuple([get_numba_type(o.type) for o in node.outputs])
+        else:
+            ret_sig = get_numba_type(node.outputs[0].type)
+
+        @numba.njit
+        def qr_full(x):
+            with numba.objmode(ret=ret_sig):
+                ret = np.linalg.qr(x, mode=mode)
+            return ret
+
+    else:
+
+        out_dtype = node.outputs[0].type.numpy_dtype
+        inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+        @numba.njit
+        def qr_full(x):
+            res = np.linalg.qr(inputs_cast(x))
+            return res
+
+    return qr_full
+
+
+@numba_funcify.register(SVD)
+def numba_funcify_SVD(op, node, **kwargs):
+    full_matrices = op.full_matrices
+    compute_uv = op.compute_uv
+
+    if not compute_uv:
+
+        warnings.warn(
+            (
+                "Numba will use object mode to allow the "
+                "`compute_uv` argument to `numpy.linalg.svd`."
+            ),
+            UserWarning,
+        )
+
+        if len(node.outputs) > 1:
+            ret_sig = numba.types.Tuple([get_numba_type(o.type) for o in node.outputs])
+        else:
+            ret_sig = get_numba_type(node.outputs[0].type)
+
+        @numba.njit
+        def svd(x):
+            with numba.objmode(ret=ret_sig):
+                ret = np.linalg.svd(x, full_matrices, compute_uv)
+            return ret
+
+    else:
+
+        out_dtype = node.outputs[0].type.numpy_dtype
+        inputs_cast = int_to_float_fn(node.inputs, out_dtype)
+
+        @numba.njit
+        def svd(x):
+            return np.linalg.svd(inputs_cast(x), full_matrices)
+
+    return svd
